@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MicroJava Compiler - CS-471L</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <span class="logo-icon">&lt;/&gt;</span>
+                    <div class="logo-text">
+                        <h1>MicroJava</h1>
+                        <span class="logo-sub">Compiler v1.0</span>
+                    </div>
+                </div>
+            </div>
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-module="lexer">
+                    <span class="nav-icon">🔍</span>
+                    <span>Lexical Analyzer</span>
+                </button>
+                <button class="nav-item" data-module="recursive">
+                    <span class="nav-icon">🔁</span>
+                    <span>Recursive Descent</span>
+                </button>
+                <button class="nav-item" data-module="ll1">
+                    <span class="nav-icon">📊</span>
+                    <span>LL(1) Predictive</span>
+                </button>
+                <button class="nav-item" data-module="lr">
+                    <span class="nav-icon">⚙️</span>
+                    <span>LR Parser (SLR(1))</span>
+                </button>
+                <button class="nav-item" data-module="symbol_table">
+                    <span class="nav-icon">📋</span>
+                    <span>Symbol Table</span>
+                </button>
+                <button class="nav-item" data-module="full">
+                    <span class="nav-icon">🚀</span>
+                    <span>Full Compilation</span>
+                </button>
+                <button class="nav-item" data-module="grammar">
+                    <span class="nav-icon">📖</span>
+                    <span>Grammar &amp; Tables</span>
+                </button>
+            </nav>
+            <div class="sidebar-footer">
+                <span>CS-471L · UET Lahore</span>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header class="top-bar">
+                <h2 id="module-title">Lexical Analyzer</h2>
+                <div class="top-bar-actions">
+                    <button class="btn btn-secondary" onclick="loadSample()">📄 Load Sample</button>
+                    <button class="btn btn-primary" id="run-btn" onclick="runModule()">▶ Run Module</button>
+                </div>
+            </header>
+
+            <div class="editor-panel">
+                <div class="editor-header">
+                    <span>Source Code (<span id="file-status">edit mode</span>)</span>
+                    <select id="sample-select" onchange="loadSelectedSample()">
+                        <option value="">-- Select sample --</option>
+                        {% for fname in test_files %}
+                        <option value="{{ fname }}">{{ fname }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <textarea id="source-editor" spellcheck="false">program Simple
+int a;
+{
+void main()
+{
+    a = 5;
+    print(a);
+    return;
+}
+}</textarea>
+            </div>
+
+            <div class="output-panel" id="output-panel">
+                <div class="output-header">
+                    <span>Output</span>
+                    <div class="output-status" id="output-status">Ready</div>
+                </div>
+                <div class="output-body" id="output-body">
+                    <div class="placeholder">
+                        <div class="placeholder-icon">⚡</div>
+                        <h3>Ready to Compile</h3>
+                        <p>Select a module and click "Run Module" to see results here.</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="loading-overlay" class="loading-overlay hidden">
+        <div class="loader"></div>
+        <p>Processing...</p>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script>
+        const testSources = {{ test_sources | tojson }};
+    </script>
+</body>
+</html>

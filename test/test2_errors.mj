@@ -1,0 +1,21 @@
+program TestErrors
+int a;
+int b;
+{
+void test()
+    int x;
+    int y;
+{
+    x = 10;
+    y = x + 5;
+    if (x < y) {
+        print(x);
+    }
+    while (a > 0) {
+        a = a - 1;
+    }
+    read(b);
+    print(b);
+    return;
+}
+}

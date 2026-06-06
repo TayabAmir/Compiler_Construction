@@ -1,0 +1,10 @@
+program Simple
+int a;
+{
+void main()
+{
+    a = 5;
+    print(a);
+    return;
+}
+}

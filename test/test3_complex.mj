@@ -1,0 +1,44 @@
+program ComplexExample
+final int SIZE = 100;
+int global_counter;
+
+class Data {
+    int value;
+    int flag;
+}
+{
+void compute(int n)
+    int local_sum;
+    int i;
+{
+    local_sum = 0;
+    i = 0;
+    while (i < n) {
+        local_sum = local_sum + i;
+        i = i + 1;
+    }
+    print(local_sum);
+    return;
+}
+
+int main()
+    int result;
+    int temp;
+{
+    result = 0;
+    temp = SIZE;
+    read(result);
+    if (result > 0) {
+        compute(result);
+        print(result);
+    } else {
+        temp = -1;
+        print(temp);
+    }
+    while (result != 0) {
+        result = result - 1;
+        print(result);
+    }
+    return 0;
+}
+}
