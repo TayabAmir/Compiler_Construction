@@ -1,0 +1,17 @@
+program Comprehensive
+  int a ;
+  final int MAX = 100 ;
+  int b ;
+{
+  void init ( int n )
+  {
+    a = n ;
+    return ;
+  }
+  void main ( )
+    int counter ;
+  {
+    counter = 0 ;
+    return ;
+  }
+}

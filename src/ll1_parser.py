@@ -243,7 +243,11 @@ class LL1Parser:
                 trace.append(step)
                 self.errors.report(ErrorType.SYNTAX, f"LL(1): Expected {grammar_symbol_to_display(X)}, found {grammar_symbol_to_display(a)}", 0, 0)
                 success = False
-                while ip < len(input_tokens) and input_tokens[ip] != X:
+                # Panic-mode recovery: skip input until we find expected terminal or EOF
+                while ip < len(input_tokens) and input_tokens[ip] != X and input_tokens[ip] != "$":
+                    ip += 1
+                # Consume the matched terminal if found
+                if ip < len(input_tokens) and input_tokens[ip] == X:
                     ip += 1
             elif self._is_non_terminal(X):
                 key = (X, a)
@@ -259,6 +263,8 @@ class LL1Parser:
                     trace.append(step)
                     self.errors.report(ErrorType.SYNTAX, f"LL(1): No production for {X} with {grammar_symbol_to_display(a)}", 0, 0)
                     success = False
+                    # Skip current input token to avoid getting stuck
+                    ip += 1
             else:
                 step["action"] = f"ERROR: Unexpected symbol {X}"
                 trace.append(step)

@@ -1,0 +1,17 @@
+program Test
+  int a ;
+  int b ;
+{
+  int compute ( )
+  {
+    return 0 ;
+  }
+  void init ( int n )
+  {
+    return ;
+  }
+  void main ( )
+  {
+    return ;
+  }
+}

@@ -1,0 +1,14 @@
+program Test
+  int a ;
+  final int MAX = 100 ;
+{
+  int compute ( )
+  {
+    return 0 ;
+  }
+  void main ( )
+  {
+    a = MAX ;
+    return ;
+  }
+}

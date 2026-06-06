@@ -1,0 +1,12 @@
+program Minimal
+  int a ;
+{
+  int compute ( )
+  {
+    return 0 ;
+  }
+  void main ( )
+  {
+    return ;
+  }
+}

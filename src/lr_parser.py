@@ -74,63 +74,59 @@ class LRParser:
     def initialize_microjava_grammar(self):
         self.grammar = {
             "S'": [["Program"]],
-            "Program": [["KW_PROGRAM", "id", "Decls", "SYM_LBRACE", "Methods", "SYM_RBRACE"]],
-            "Decls": [["VarDecl", "Decls"], ["epsilon"]],
-            "VarDecl": [["Type", "id", "SYM_SEMICOL"]],
-            "Type": [["id"]],
-            "Methods": [["MethodDecl", "Methods"], ["epsilon"]],
-            "MethodDecl": [["KW_VOID", "id", "SYM_LPAREN", "FParams", "SYM_RPAREN", "LocalDecls", "Block"]],
-            "FParams": [["ParamList"], ["epsilon"]],
-            "ParamList": [["Type", "id", "ParamTail"]],
-            "ParamTail": [["SYM_COMMA", "Type", "id", "ParamTail"], ["epsilon"]],
-            "LocalDecls": [["LocalDecl", "LocalDecls"], ["epsilon"]],
-            "LocalDecl": [["Type", "id", "SYM_SEMICOL"]],
-            "Block": [["SYM_LBRACE", "Stmts", "SYM_RBRACE"]],
-            "Stmts": [["Stmt", "Stmts"], ["epsilon"]],
-            "Stmt": [
-                ["Designator", "StmtCont"],
-                ["KW_IF", "SYM_LPAREN", "Cond", "SYM_RPAREN", "Stmt", "ElsePart"],
-                ["KW_WHILE", "SYM_LPAREN", "Cond", "SYM_RPAREN", "Stmt"],
-                ["KW_RETURN", "RetTail"],
-                ["KW_READ", "SYM_LPAREN", "Designator", "SYM_RPAREN", "SYM_SEMICOL"],
-                ["KW_PRINT", "SYM_LPAREN", "Expr", "PrintTail"],
-                ["Block"],
-                ["SYM_SEMICOL"],
-            ],
-            "StmtCont": [["SYM_ASSIGN", "Expr", "SYM_SEMICOL"], ["SYM_LPAREN", "ExprList", "SYM_RPAREN", "SYM_SEMICOL"]],
-            "ElsePart": [["KW_ELSE", "Stmt"], ["epsilon"]],
-            "RetTail": [["Expr", "SYM_SEMICOL"], ["SYM_SEMICOL"]],
+            "Program": [["KW_PROGRAM", "id", "Declarations", "SYM_LBRACE", "MethodList", "SYM_RBRACE"]],
+            "Declarations": [["ConstDecl", "Declarations"], ["VarDecl", "Declarations"], ["ClassDecl", "Declarations"], ["epsilon"]],
+            "ConstDecl": [["KW_FINAL", "Type", "id", "SYM_ASSIGN", "ConstVal", "SYM_SEMICOL"]],
+            "ConstVal": [["NUMBER"], ["CHAR_CONST"]],
+            "VarDecl": [["Type", "id", "VarDeclTail"]],
+            "VarDeclTail": [["SYM_COMMA", "id", "VarDeclTail"], ["SYM_SEMICOL"]],
+            "ClassDecl": [["KW_CLASS", "id", "SYM_LBRACE", "VarDeclList", "SYM_RBRACE"]],
+            "VarDeclList": [["VarDecl", "VarDeclList"], ["epsilon"]],
+            "MethodList": [["MethodDecl", "MethodList"], ["epsilon"]],
+            "MethodDecl": [["MethodHeader", "id", "SYM_LPAREN", "FormPars", "SYM_RPAREN", "VarDeclList", "Block"]],
+            "MethodHeader": [["Type"], ["KW_VOID"]],
+            "FormPars": [["Type", "id", "FormParsTail"], ["epsilon"]],
+            "FormParsTail": [["SYM_COMMA", "Type", "id", "FormParsTail"], ["epsilon"]],
+            "Type": [["id", "ArrayOpt"]],
+            "ArrayOpt": [["SYM_LBRACK", "SYM_RBRACK"], ["epsilon"]],
+            "Block": [["SYM_LBRACE", "StatementList", "SYM_RBRACE"]],
+            "StatementList": [["Statement", "StatementList"], ["epsilon"]],
+            "Statement": [["Designator", "StmtTail"], ["IfStmt"], ["WhileStmt"], ["ReturnStmt"], ["ReadStmt"], ["PrintStmt"], ["Block"], ["SYM_SEMICOL"]],
+            "StmtTail": [["SYM_ASSIGN", "Expr", "SYM_SEMICOL"], ["ActPars", "SYM_SEMICOL"]],
+            "IfStmt": [["KW_IF", "SYM_LPAREN", "Condition", "SYM_RPAREN", "Statement", "ElseOpt"]],
+            "ElseOpt": [["KW_ELSE", "Statement"], ["epsilon"]],
+            "WhileStmt": [["KW_WHILE", "SYM_LPAREN", "Condition", "SYM_RPAREN", "Statement"]],
+            "ReturnStmt": [["KW_RETURN", "ReturnTail"]],
+            "ReturnTail": [["Expr", "SYM_SEMICOL"], ["SYM_SEMICOL"]],
+            "ReadStmt": [["KW_READ", "SYM_LPAREN", "Designator", "SYM_RPAREN", "SYM_SEMICOL"]],
+            "PrintStmt": [["KW_PRINT", "SYM_LPAREN", "Expr", "PrintTail"]],
             "PrintTail": [["SYM_COMMA", "NUMBER", "SYM_RPAREN", "SYM_SEMICOL"], ["SYM_RPAREN", "SYM_SEMICOL"]],
-            "Designator": [["id"]],
+            "Designator": [["id", "DesignatorTail"]],
+            "DesignatorTail": [["SYM_DOT", "id", "DesignatorTail"], ["SYM_LBRACK", "Expr", "SYM_RBRACK", "DesignatorTail"], ["epsilon"]],
+            "ActPars": [["SYM_LPAREN", "ExprList", "SYM_RPAREN"]],
             "ExprList": [["Expr", "ExprListTail"], ["epsilon"]],
             "ExprListTail": [["SYM_COMMA", "Expr", "ExprListTail"], ["epsilon"]],
-            "Cond": [["Expr", "Relop", "Expr"]],
+            "Condition": [["Expr", "Relop", "Expr"]],
             "Relop": [["OP_EQ"], ["OP_NEQ"], ["OP_GT"], ["OP_GE"], ["OP_LT"], ["OP_LE"]],
-            "Expr": [["Term", "ExprTail"]],
-            "ExprTail": [["OP_PLUS", "Term", "ExprTail"], ["OP_MINUS", "Term", "ExprTail"], ["epsilon"]],
-            "Term": [["Factor", "TermTail"]],
-            "TermTail": [["OP_MULT", "Factor", "TermTail"], ["OP_DIV", "Factor", "TermTail"], ["OP_MOD", "Factor", "TermTail"], ["epsilon"]],
-            "Factor": [["NUMBER"], ["id"], ["SYM_LPAREN", "Expr", "SYM_RPAREN"]],
+            "Expr": [["ExprPrime"]],
+            "ExprPrime": [["OP_MINUS", "Term", "ExprAddTail"], ["Term", "ExprAddTail"]],
+            "ExprAddTail": [["OP_PLUS", "Term", "ExprAddTail"], ["OP_MINUS", "Term", "ExprAddTail"], ["epsilon"]],
+            "Term": [["Factor", "TermMulTail"]],
+            "TermMulTail": [["OP_MULT", "Factor", "TermMulTail"], ["OP_DIV", "Factor", "TermMulTail"], ["OP_MOD", "Factor", "TermMulTail"], ["epsilon"]],
+            "Factor": [["KW_NEW", "id", "NewArrayOpt"], ["NUMBER"], ["CHAR_CONST"], ["SYM_LPAREN", "Expr", "SYM_RPAREN"], ["Designator", "FactorCallOpt"]],
+            "FactorCallOpt": [["ActPars"], ["epsilon"]],
+            "NewArrayOpt": [["SYM_LBRACK", "Expr", "SYM_RBRACK"], ["epsilon"]],
         }
 
-        self.non_terminals = {
-            "S'", "Program", "Decls", "VarDecl", "Type",
-            "Methods", "MethodDecl", "FParams", "ParamList", "ParamTail",
-            "LocalDecls", "LocalDecl",
-            "Block", "Stmts", "Stmt", "StmtCont", "ElsePart",
-            "RetTail", "PrintTail", "Designator",
-            "ExprList", "ExprListTail", "Cond", "Relop",
-            "Expr", "ExprTail", "Term", "TermTail", "Factor",
-        }
+        self.non_terminals = set(self.grammar.keys())
 
         self.terminals = {
-            "KW_PROGRAM", "id", "SYM_LBRACE", "SYM_RBRACE",
-            "SYM_ASSIGN", "NUMBER", "SYM_SEMICOL", "SYM_COMMA",
-            "KW_VOID", "SYM_LPAREN", "SYM_RPAREN",
-            "KW_IF", "KW_ELSE", "KW_WHILE", "KW_RETURN",
-            "KW_READ", "KW_PRINT",
-            "OP_EQ", "OP_NEQ", "OP_GT", "OP_GE", "OP_LT", "OP_LE",
-            "OP_PLUS", "OP_MINUS", "OP_MULT", "OP_DIV", "OP_MOD", "$",
+            "KW_PROGRAM", "id", "SYM_LBRACE", "SYM_RBRACE", "KW_FINAL", "SYM_ASSIGN",
+            "NUMBER", "CHAR_CONST", "SYM_SEMICOL", "SYM_COMMA", "KW_CLASS",
+            "KW_VOID", "SYM_LPAREN", "SYM_RPAREN", "SYM_LBRACK", "SYM_RBRACK",
+            "SYM_DOT", "KW_IF", "KW_ELSE", "KW_WHILE", "KW_RETURN", "KW_READ",
+            "KW_PRINT", "OP_EQ", "OP_NEQ", "OP_GT", "OP_GE", "OP_LT", "OP_LE",
+            "OP_PLUS", "OP_MINUS", "OP_MULT", "OP_DIV", "OP_MOD", "KW_NEW", "$",
         }
 
         self.start_symbol = "S'"
@@ -355,9 +351,22 @@ class LRParser:
                 has_error = True
                 step["action"] = f"ERROR - {err_msg}"
                 trace.append(step)
-                ip += 1
-                if a == "$":
-                    break
+                # Panic-mode recovery: pop states until we find one that can handle this token
+                recovered = False
+                while len(state_stack) > 1 and not recovered:
+                    state_stack.pop()
+                    if sym_stack:
+                        sym_stack.pop()
+                    top = state_stack[-1]
+                    if top in self.action and a in self.action[top]:
+                        recovered = True
+                        break
+                if not recovered:
+                    ip += 1
+                    if a == "$":
+                        break
+                    continue
+                # Recovery succeeded - start fresh iteration with the new state
                 continue
 
             act = self.action[state][a]
@@ -387,14 +396,19 @@ class LRParser:
                         sym_stack.pop()
 
                 sym_stack.append(lhs)
-                top_state = state_stack[-1]
-                if top_state in self.goto_table and lhs in self.goto_table[top_state]:
+                top_state = state_stack[-1] if state_stack else -1
+                if top_state >= 0 and top_state in self.goto_table and lhs in self.goto_table[top_state]:
                     state_stack.append(self.goto_table[top_state][lhs])
                 else:
                     err_msg = f"LR: No goto entry for state {top_state} with {lhs}"
                     self.errors.report(ErrorType.SYNTAX, err_msg, 0, 0)
                     has_error = True
-                    break
+                    rhs_str = "epsilon" if not rhs else self._display_sequence(rhs)
+                    step["action"] = f"ERROR - {err_msg}"
+                    trace.append(step)
+                    # Try to recover by skipping current input
+                    ip += 1
+                    continue
 
                 rhs_str = "epsilon" if not rhs else self._display_sequence(rhs)
                 step["action"] = f"Reduce {lhs} -> {rhs_str}"

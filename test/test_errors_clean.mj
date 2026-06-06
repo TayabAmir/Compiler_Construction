@@ -1,0 +1,11 @@
+program CleanErrors
+  int a ;
+{
+  void main ( )
+  {
+    a = 42 ;
+    print ( a ) ;
+    b = 10 ;
+    return ;
+  }
+}

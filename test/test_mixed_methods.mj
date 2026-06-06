@@ -1,0 +1,15 @@
+program Test
+{
+  int compute ( )
+  {
+    return 0 ;
+  }
+  void init ( int n )
+  {
+    return ;
+  }
+  void main ( )
+  {
+    return ;
+  }
+}

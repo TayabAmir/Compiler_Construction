@@ -1,0 +1,13 @@
+program Test
+  int a ;
+  int b ;
+{
+  int compute ( )
+  {
+    return 0 ;
+  }
+  void main ( )
+  {
+    return ;
+  }
+}

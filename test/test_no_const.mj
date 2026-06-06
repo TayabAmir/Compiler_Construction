@@ -1,0 +1,13 @@
+program Test
+  int a ;
+{
+  void init ( int n )
+  {
+    a = n ;
+    return ;
+  }
+  void main ( )
+  {
+    return ;
+  }
+}

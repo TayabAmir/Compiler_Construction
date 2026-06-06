@@ -485,7 +485,7 @@ def interactive_mode():
     elif choice == "6":
         run_full_compilation(source)
     elif choice == "7":
-        pass
+        print_grammar_info()
     elif choice == "8":
         run_lexer(source)
         run_recursive_parser(source)

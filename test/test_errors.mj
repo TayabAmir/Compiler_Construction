@@ -1,0 +1,16 @@
+/* Test file with multiple error types */
+program Errors
+
+  int a ;
+  final int MAX = 100 ;
+
+  void main ( )
+  {
+    a = 42 ;
+    print ( a ) ;
+    b = 10 ;          // Error: undeclared variable
+    int x ;           // Error: declaration after statement
+    print ( "hello" ) // Error: string not supported
+    return ;
+  }
+}

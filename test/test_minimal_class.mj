@@ -1,0 +1,8 @@
+program Minimal
+  class Point { int x ; int y ; }
+{
+  void main ( )
+  {
+    return ;
+  }
+}

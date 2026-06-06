@@ -1,0 +1,9 @@
+program Test
+  int a ;
+  int b ;
+{
+  void main ( )
+  {
+    return ;
+  }
+}

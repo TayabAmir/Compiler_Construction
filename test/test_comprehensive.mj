@@ -1,0 +1,47 @@
+// Comprehensive MicroJava test - all language features
+program Comprehensive
+
+  int a ;
+  final int MAX = 100 ;
+  int b ;
+  class Point
+  {
+    int x ;
+    int y ;
+  }
+
+{
+  void init ( int n )
+    int result ;
+  {
+    result = 0 ;
+    a = n ;
+    print ( result ) ;
+    print ( result , 5 ) ;
+    return ;
+  }
+
+  int compute ( )
+    int temp ;
+  {
+    temp = -1 ;
+    read ( temp ) ;
+    if ( temp > 0 ) {
+      return temp ;
+    } else {
+      return 0 ;
+    }
+  }
+
+  void main ( )
+    int counter ;
+  {
+    counter = 0 ;
+    while ( counter < MAX ) {
+      print ( counter ) ;
+      counter = counter + 1 ;
+    }
+    print ( a ) ;
+    return ;
+  }
+}

@@ -1,0 +1,20 @@
+program Test
+  int a ;
+  int b ;
+{
+  void init ( int n )
+  {
+    a = n ;
+    return ;
+  }
+  int compute ( )
+  {
+    return 0 ;
+  }
+  void main ( )
+    int counter ;
+  {
+    counter = 0 ;
+    return ;
+  }
+}
