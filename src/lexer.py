@@ -47,7 +47,13 @@ class Lexer:
     def skip_whitespace_and_comments(self):
         while self.pos < len(self.source):
             c = self.peek()
+            # treat literal whitespace characters as whitespace
             if c in " \t\n\r":
+                self.advance()
+                continue
+            # treat backslash-escaped whitespace sequences (e.g. "\\r", "\\n", "\\t") as whitespace
+            if c == "\\" and self.pos + 1 < len(self.source) and self.source[self.pos + 1] in "rnt":
+                self.advance()
                 self.advance()
                 continue
             if c == "/" and self.pos + 1 < len(self.source) and self.source[self.pos + 1] == "/":
@@ -66,6 +72,8 @@ class Lexer:
 
         c = self.peek()
         start_line, start_col = self.line, self.col
+
+        # backslash-escaped whitespace sequences are handled by the skipper above
 
         if c.isalpha() or c == "_":
             lexeme = ""

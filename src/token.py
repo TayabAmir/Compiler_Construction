@@ -71,20 +71,19 @@ TOKEN_NAMES = {
     TokenType.OP_MULT: "Operator(*)",
     TokenType.OP_DIV: "Operator(/)",
     TokenType.OP_MOD: "Operator(%)",
-    TokenType.SYM_LPAREN: "Symbol(()",
-    TokenType.SYM_RPAREN: "Symbol())",
-    TokenType.SYM_LBRACK: "Symbol([)",
-    TokenType.SYM_RBRACK: "Symbol(])",
-    TokenType.SYM_LBRACE: "Symbol({)",
-    TokenType.SYM_RBRACE: "Symbol(})",
-    TokenType.SYM_ASSIGN: "Symbol(=)",
-    TokenType.SYM_SEMICOL: "Symbol(;)",
-    TokenType.SYM_COMMA: "Symbol(,)",
-    TokenType.SYM_DOT: "Symbol(.)",
+    TokenType.SYM_LPAREN: "Operator(()",
+    TokenType.SYM_RPAREN: "Operator())",
+    TokenType.SYM_LBRACK: "Operator([)",
+    TokenType.SYM_RBRACK: "Operator(])",
+    TokenType.SYM_LBRACE: "Operator({)",
+    TokenType.SYM_RBRACE: "Operator(})",
+    TokenType.SYM_ASSIGN: "Operator(=)",
+    TokenType.SYM_SEMICOL: "Operator(;)",
+    TokenType.SYM_COMMA: "Operator(,)",
+    TokenType.SYM_DOT: "Operator(.)",
     TokenType.COMMENT: "Comment",
     TokenType.UNKNOWN: "Unknown",
 }
-
 
 class Token:
     def __init__(self, type_: TokenType, lexeme: str = "", line: int = 0, col: int = 0):

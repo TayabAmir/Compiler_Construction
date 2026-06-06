@@ -316,6 +316,9 @@ class LRParser:
     def _convert_tokens(self, tokens: list[Token]) -> list[str]:
         result = []
         for t in tokens:
+            # skip comments for parsing
+            if t.type == TokenType.COMMENT:
+                continue
             if t.type == TokenType.EOF:
                 result.append("$")
                 break
