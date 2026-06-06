@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .token import Token, TokenType
+from .token import Token, TokenType, grammar_symbol_set_to_display, grammar_symbol_to_display, grammar_symbols_to_display
 from .error_handler import ErrorHandler, ErrorType
 
 
@@ -30,7 +30,7 @@ class LRItem:
         for i, s in enumerate(self.prod):
             if i == self.dot_pos:
                 parts.append("·")
-            parts.append(s)
+            parts.append(grammar_symbol_to_display(s))
         if self.dot_pos == len(self.prod):
             parts.append("·")
         return f"{self.lhs} -> {' '.join(parts)}"
@@ -69,7 +69,7 @@ class LRParser:
 
     @staticmethod
     def _set_to_str(s: set[str]) -> str:
-        return "{ " + ", ".join(sorted(s)) + " }"
+        return grammar_symbol_set_to_display(s)
 
     def initialize_microjava_grammar(self):
         self.grammar = {
@@ -327,6 +327,10 @@ class LRParser:
             result.append("$")
         return result
 
+    @staticmethod
+    def _display_sequence(symbols: list[str]) -> str:
+        return " ".join(grammar_symbol_to_display(symbol) for symbol in symbols)
+
     def parse(self, tokens: list[Token]) -> dict:
         input_tokens = self._convert_tokens(tokens)
         state_stack = [0]
@@ -340,13 +344,13 @@ class LRParser:
             a = input_tokens[ip] if ip < len(input_tokens) else "$"
 
             state_str = " ".join(str(s) for s in state_stack)
-            sym_str = " ".join(sym_stack) if sym_stack else "$"
-            input_str = " ".join(input_tokens[ip:]) if ip < len(input_tokens) else "$"
+            sym_str = self._display_sequence(sym_stack) if sym_stack else "$"
+            input_str = self._display_sequence(input_tokens[ip:]) if ip < len(input_tokens) else "$"
 
             step = {"state_stack": state_str, "sym_stack": sym_str, "input": input_str, "action": ""}
 
             if state not in self.action or a not in self.action.get(state, {}):
-                err_msg = f"LR: No action for state {state} with {a}"
+                err_msg = f"LR: No action for state {state} with {grammar_symbol_to_display(a)}"
                 self.errors.report(ErrorType.SYNTAX, err_msg, 0, 0)
                 has_error = True
                 step["action"] = f"ERROR - {err_msg}"
@@ -392,7 +396,7 @@ class LRParser:
                     has_error = True
                     break
 
-                rhs_str = "epsilon" if not rhs else " ".join(rhs)
+                rhs_str = "epsilon" if not rhs else self._display_sequence(rhs)
                 step["action"] = f"Reduce {lhs} -> {rhs_str}"
                 trace.append(step)
             else:
@@ -409,7 +413,7 @@ class LRParser:
         states_info = []
         for state in self.states:
             items_str = [str(item) for item in state.items]
-            trans_str = {k: str(v) for k, v in state.transitions.items()}
+            trans_str = {grammar_symbol_to_display(k): str(v) for k, v in state.transitions.items()}
             states_info.append({
                 "id": state.id,
                 "items": items_str,
@@ -423,12 +427,13 @@ class LRParser:
             for t in s_actions:
                 used_terminals.add(t)
 
-        used_terminals = sorted(used_terminals)
+        used_terminals_raw = sorted(used_terminals)
+        used_terminals = [grammar_symbol_to_display(t) for t in used_terminals_raw]
         rows = []
         for s in sorted(self.action.keys()):
             row = {"state": s}
-            for t in used_terminals:
-                row[t] = self.action[s].get(t, "")
+            for raw_t, display_t in zip(used_terminals_raw, used_terminals):
+                row[display_t] = self.action[s].get(raw_t, "")
             rows.append(row)
 
         return {"terminals": used_terminals, "rows": rows}

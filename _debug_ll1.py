@@ -5,6 +5,7 @@ sys.path.insert(0, os.getcwd())
 from src.ll1_parser import LL1Parser
 from src.lexer import Lexer
 from src.error_handler import ErrorHandler
+from src.token import grammar_symbol_to_display
 
 source = open('test/test1_valid.mj').read()
 errors = ErrorHandler()
@@ -13,7 +14,7 @@ tokens = lexer.tokenize_all()
 print(f'Tokens ({len(tokens)}):')
 for t in tokens:
     gs = t.to_grammar_symbol()
-    print(f'  [{t.line},{t.col}] {t.type_to_string():25} -> grammar: {gs}')
+    print(f'  [{t.line},{t.col}] {t.type_to_string():25} -> grammar: {grammar_symbol_to_display(gs)}')
 
 errors2 = ErrorHandler()
 parser = LL1Parser(errors2)

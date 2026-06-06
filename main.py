@@ -230,16 +230,14 @@ def print_grammar_info():
 
 def print_first_sets(parser: LL1Parser):
     print_section("FIRST SETS")
-    for nt in sorted(parser.non_terminals):
-        fs = parser.first.get(nt, set())
-        print(f"    FIRST({nt}) = {{ {', '.join(sorted(fs))} }}")
+    for nt, fs in parser.get_first_sets().items():
+        print(f"    FIRST({nt}) = {fs}")
 
 
 def print_follow_sets(parser: LL1Parser):
     print_section("FOLLOW SETS")
-    for nt in sorted(parser.non_terminals):
-        fs = parser.follow.get(nt, set())
-        print(f"    FOLLOW({nt}) = {{ {', '.join(sorted(fs))} }}")
+    for nt, fs in parser.get_follow_sets().items():
+        print(f"    FOLLOW({nt}) = {fs}")
 
 
 def print_ll1_table(parser: LL1Parser):

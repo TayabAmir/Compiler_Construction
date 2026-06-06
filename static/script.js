@@ -1,4 +1,7 @@
 let currentModule = "lexer";
+const OUTPUT_HEIGHT_KEY = "microjava.outputHeight";
+const OUTPUT_COLLAPSED_KEY = "microjava.outputCollapsed";
+const DEFAULT_OUTPUT_HEIGHT = 380;
 
 const moduleNames = {
     lexer: "Lexical Analyzer",
@@ -23,6 +26,91 @@ document.querySelectorAll(".nav-item").forEach((item) => {
         }
     });
 });
+
+document.addEventListener("DOMContentLoaded", initOutputPanelControls);
+
+function initOutputPanelControls() {
+    const panel = document.getElementById("output-panel");
+    const handle = document.getElementById("output-resize-handle");
+    const toggle = document.getElementById("output-toggle");
+
+    if (!panel || !handle || !toggle) {
+        return;
+    }
+
+    const savedHeight = parseInt(localStorage.getItem(OUTPUT_HEIGHT_KEY) || "", 10);
+    const savedCollapsed = localStorage.getItem(OUTPUT_COLLAPSED_KEY) === "true";
+
+    if (!Number.isNaN(savedHeight) && savedHeight > 0) {
+        panel.style.setProperty("--output-panel-height", `${savedHeight}px`);
+    } else {
+        panel.style.setProperty("--output-panel-height", `${DEFAULT_OUTPUT_HEIGHT}px`);
+    }
+
+    setOutputCollapsed(savedCollapsed);
+
+    toggle.addEventListener("click", () => {
+        setOutputCollapsed(!panel.classList.contains("collapsed"));
+    });
+
+    handle.addEventListener("mousedown", startOutputResize);
+}
+
+function setOutputCollapsed(collapsed) {
+    const panel = document.getElementById("output-panel");
+    const handle = document.getElementById("output-resize-handle");
+    const toggle = document.getElementById("output-toggle");
+
+    if (!panel || !handle || !toggle) {
+        return;
+    }
+
+    panel.classList.toggle("collapsed", collapsed);
+    handle.style.display = collapsed ? "none" : "block";
+    toggle.textContent = collapsed ? "▴" : "▾";
+    toggle.title = collapsed ? "Expand output" : "Collapse output";
+    localStorage.setItem(OUTPUT_COLLAPSED_KEY, String(collapsed));
+}
+
+function startOutputResize(event) {
+    if (event.button !== 0) {
+        return;
+    }
+
+    const panel = document.getElementById("output-panel");
+    if (!panel || panel.classList.contains("collapsed")) {
+        return;
+    }
+
+    const mainContent = document.querySelector(".main-content");
+    const startY = event.clientY;
+    const startHeight = panel.getBoundingClientRect().height;
+    const minHeight = 44;
+    const availableHeight = mainContent ? mainContent.clientHeight : window.innerHeight;
+    const maxHeight = Math.max(minHeight, availableHeight - 180);
+
+    document.body.classList.add("resizing-output");
+
+    function onMove(moveEvent) {
+        const nextHeight = startHeight + (startY - moveEvent.clientY);
+        const clampedHeight = Math.max(minHeight, Math.min(maxHeight, nextHeight));
+        panel.style.setProperty("--output-panel-height", `${clampedHeight}px`);
+    }
+
+    function onUp() {
+        document.body.classList.remove("resizing-output");
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+
+        const heightValue = parseInt(getComputedStyle(panel).getPropertyValue("--output-panel-height"), 10);
+        if (!Number.isNaN(heightValue) && heightValue > 0) {
+            localStorage.setItem(OUTPUT_HEIGHT_KEY, String(heightValue));
+        }
+    }
+
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+}
 
 function getPlaceholder(module) {
     const msgs = {

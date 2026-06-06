@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .token import Token, TokenType
+from .token import Token, TokenType, grammar_symbol_set_to_display, grammar_symbol_to_display, grammar_symbols_to_display
 from .error_handler import ErrorHandler, ErrorType
 
 
@@ -23,18 +23,11 @@ class LL1Parser:
 
     @staticmethod
     def _vec_to_str(v: list[str]) -> str:
-        if not v:
-            return "[]"
-        if v == ["epsilon"]:
-            return "[eps]"
-        parts = []
-        for s in v:
-            parts.append("eps" if s == "epsilon" else s)
-        return "[" + " ".join(parts) + "]"
+        return grammar_symbols_to_display(v)
 
     @staticmethod
     def _set_to_str(s: set[str]) -> str:
-        return "{ " + ", ".join(sorted(s)) + " }"
+        return grammar_symbol_set_to_display(s)
 
     def initialize_microjava_grammar(self):
         self.grammar = {
@@ -210,6 +203,10 @@ class LL1Parser:
             result.append("$")
         return result
 
+    @staticmethod
+    def _display_sequence(symbols: list[str]) -> str:
+        return " ".join(grammar_symbol_to_display(symbol) for symbol in symbols)
+
     def parse(self, tokens: list[Token]) -> dict:
         input_tokens = self._convert_tokens(tokens)
         stack = ["$", self.start_symbol]
@@ -223,9 +220,9 @@ class LL1Parser:
             stack_str = " ".join(actual_stack) if actual_stack else "$"
             # Rebuild properly
             temp = list(stack)
-            stack_str = " ".join(temp)
+            stack_str = self._display_sequence(temp)
 
-            input_str = " ".join(input_tokens[ip:]) if ip < len(input_tokens) else "$"
+            input_str = self._display_sequence(input_tokens[ip:]) if ip < len(input_tokens) else "$"
 
             X = stack.pop()
             a = input_tokens[ip] if ip < len(input_tokens) else "$"
@@ -238,13 +235,13 @@ class LL1Parser:
                 success = True
                 break
             elif X == a:
-                step["action"] = f"Match {X}"
+                step["action"] = f"Match {grammar_symbol_to_display(X)}"
                 trace.append(step)
                 ip += 1
             elif self._is_terminal(X):
-                step["action"] = f"ERROR: Expected {X}, found {a}"
+                step["action"] = f"ERROR: Expected {grammar_symbol_to_display(X)}, found {grammar_symbol_to_display(a)}"
                 trace.append(step)
-                self.errors.report(ErrorType.SYNTAX, f"LL(1): Expected {X}, found {a}", 0, 0)
+                self.errors.report(ErrorType.SYNTAX, f"LL(1): Expected {grammar_symbol_to_display(X)}, found {grammar_symbol_to_display(a)}", 0, 0)
                 success = False
                 while ip < len(input_tokens) and input_tokens[ip] != X:
                     ip += 1
@@ -258,9 +255,9 @@ class LL1Parser:
                         for sym in reversed(production):
                             stack.append(sym)
                 else:
-                    step["action"] = f"ERROR: No production for M[{X}, {a}]"
+                    step["action"] = f"ERROR: No production for M[{X}, {grammar_symbol_to_display(a)}]"
                     trace.append(step)
-                    self.errors.report(ErrorType.SYNTAX, f"LL(1): No production for {X} with {a}", 0, 0)
+                    self.errors.report(ErrorType.SYNTAX, f"LL(1): No production for {X} with {grammar_symbol_to_display(a)}", 0, 0)
                     success = False
             else:
                 step["action"] = f"ERROR: Unexpected symbol {X}"
@@ -280,15 +277,16 @@ class LL1Parser:
 
     def get_parse_table_data(self) -> list[dict]:
         rows = []
-        used_terminals = sorted({t for (_, t) in self.parse_table})
+        used_terminals_raw = sorted({t for (_, t) in self.parse_table})
+        used_terminals = [grammar_symbol_to_display(t) for t in used_terminals_raw]
         for nt in sorted(self.non_terminals):
             row = {"non_terminal": nt}
-            for t in used_terminals:
-                key = (nt, t)
+            for raw_t, display_t in zip(used_terminals_raw, used_terminals):
+                key = (nt, raw_t)
                 if key in self.parse_table:
                     prod = self.parse_table[key]
-                    row[t] = f"{nt} -> {self._vec_to_str(prod)}"
+                    row[display_t] = f"{nt} -> {self._vec_to_str(prod)}"
                 else:
-                    row[t] = "--"
+                    row[display_t] = "--"
             rows.append(row)
         return {"terminals": used_terminals, "rows": rows}
