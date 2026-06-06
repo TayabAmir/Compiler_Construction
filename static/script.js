@@ -321,30 +321,139 @@ function renderLL1Output(body, data) {
 }
 
 function renderLROutput(body, data) {
+    const totalSteps = data.trace ? data.trace.length : 0;
+
     let html = `<div class="summary-card"><h4>LR Parsing Result</h4>`;
     html += `<div class="module-result ${data.success ? "pass" : "fail"}">
         ${data.success ? "✓" : "✗"} ${data.success ? "Parsing Successful!" : "Parsing Failed"}
     </div>`;
+    html += `<div style="display:flex;gap:16px;margin-top:8px;font-size:12px;color:var(--text-secondary)">`;
+    html += `<span>⚙️ Total trace steps: ${totalSteps}</span>`;
+    if (data.states) html += `<span>📦 LR(0) states: ${data.states.length}</span>`;
+    html += `</div>`;
     html += `</div>`;
 
-    if (data.states && data.states.length > 0) {
-        html += `<div class="summary-card"><h4>LR(0) States (${data.states.length} total)</h4>`;
-        for (const st of data.states) {
-            html += `<div class="lr-state">
-                <div class="state-id">State ${st.id}</div>`;
-            for (const item of st.items) {
-                html += `<div class="state-item">${escHtml(item)}</div>`;
+    // Quick explanation
+    html += `<div class="summary-card lr-info-card">
+        <h4>🤔 How LR Parsing Works (Simply Put)</h4>
+        <div class="lr-info-text">
+            <p>The parser reads your program <strong>left to right</strong> and builds a
+            <strong>bottom-up</strong> structure. It uses a stack to remember what it has seen.</p>
+            <ul>
+                <li><strong>Shift</strong> → Read the next token and push it onto the stack</li>
+                <li><strong>Reduce</strong> → Found a complete code pattern, replace it with a simpler name</li>
+                <li><strong>Accept</strong> → The entire program is valid! ✅</li>
+            </ul>
+        </div>
+    </div>`;
+
+    // Trace with step numbers and action badges
+    if (data.trace && data.trace.length > 0) {
+        html += `<div class="summary-card"><h4>📋 Step-by-Step Parsing Trace</h4>`;
+        html += `<div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">
+            Each row = one action the parser took while reading your program
+        </div>`;
+
+        // Table header
+        html += `<div class="lr-trace-header">
+            <span class="lr-trace-step-h">#</span>
+            <span class="lr-trace-states-h">States Stack</span>
+            <span class="lr-trace-syms-h">Symbols Stack</span>
+            <span class="lr-trace-input-h">Remaining Input</span>
+            <span class="lr-trace-action-h">Action Taken</span>
+        </div>`;
+
+        for (let i = 0; i < data.trace.length; i++) {
+            const step = data.trace[i];
+            const stepNum = i + 1;
+            const action = step.action || "";
+            let badgeClass = "lr-badge-neutral";
+            let badgeText = "";
+
+            if (action.startsWith("Shift")) {
+                badgeClass = "lr-badge-shift";
+                badgeText = "SHIFT";
+            } else if (action.startsWith("Reduce")) {
+                badgeClass = "lr-badge-reduce";
+                badgeText = "REDUCE";
+            } else if (action === "ACCEPT") {
+                badgeClass = "lr-badge-accept";
+                badgeText = "✅ ACCEPT";
+            } else if (action.startsWith("ERROR") || action.startsWith("error")) {
+                badgeClass = "lr-badge-error";
+                badgeText = "⚠️ ERROR";
             }
-            for (const [sym, dest] of Object.entries(st.transitions)) {
-                html += `<div class="state-trans">⟶ ${sym} → State ${dest}</div>`;
-            }
-            html += `</div>`;
+
+            html += `<div class="lr-trace-row ${i % 2 === 0 ? 'lr-trace-even' : 'lr-trace-odd'}">
+                <span class="lr-trace-step">${stepNum}</span>
+                <span class="lr-trace-states" title="Parser states on the stack">${escHtml(step.state_stack)}</span>
+                <span class="lr-trace-syms" title="Grammar symbols on the stack">${escHtml(step.sym_stack)}</span>
+                <span class="lr-trace-input" title="Tokens still to be read">${escHtml(step.input)}</span>
+                <span class="lr-trace-action">
+                    <span class="${badgeClass}">${badgeText}</span>
+                    <span class="lr-action-detail">${escHtml(action)}</span>
+                </span>
+            </div>`;
         }
         html += `</div>`;
+
+        // Legend
+        html += `<div class="summary-card lr-legend-card">
+            <h4>🎯 Legend — What the Actions Mean</h4>
+            <div class="lr-legend-items">
+                <div class="lr-legend-item">
+                    <span class="lr-badge-shift">SHIFT</span>
+                    <span>Read the next token and move to a new state (push onto stack)</span>
+                </div>
+                <div class="lr-legend-item">
+                    <span class="lr-badge-reduce">REDUCE</span>
+                    <span>Found a matching grammar rule! Replace the right-hand side with the left-hand side name</span>
+                </div>
+                <div class="lr-legend-item">
+                    <span class="lr-badge-accept">✅ ACCEPT</span>
+                    <span>Success! The entire input matches the grammar — your program is syntactically valid</span>
+                </div>
+                <div class="lr-legend-item">
+                    <span class="lr-badge-error">⚠️ ERROR</span>
+                    <span>The parser encountered something unexpected — a syntax error in the program</span>
+                </div>
+            </div>
+        </div>`;
     }
 
+    // LR(0) States with better visual
+    if (data.states && data.states.length > 0) {
+        html += `<div class="summary-card"><h4>📦 LR(0) States (${data.states.length} total)</h4>`;
+        html += `<div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">
+            These are the parser's internal checkpoints. The dot (·) shows how much of a rule has been seen.
+        </div>`;
+        html += `<div class="lr-states-grid">`;
+        for (const st of data.states) {
+            html += `<div class="lr-state-card">
+                <div class="lr-state-card-header">State ${st.id}</div>
+                <div class="lr-state-card-body">`;
+            for (const item of st.items) {
+                html += `<div class="lr-state-item">${escHtml(item)}</div>`;
+            }
+            if (Object.keys(st.transitions).length > 0) {
+                html += `<div class="lr-state-trans-header">Transitions:</div>`;
+                for (const [sym, dest] of Object.entries(st.transitions)) {
+                    html += `<div class="lr-state-trans">➜ ${sym} → State ${dest}</div>`;
+                }
+            }
+            html += `</div></div>`;
+        }
+        html += `</div></div>`;
+    }
+
+    // ACTION table with legend
     if (data.action_table) {
-        html += `<div class="summary-card"><h4>ACTION Table</h4>`;
+        html += `<div class="summary-card"><h4>📊 ACTION Table</h4>`;
+        html += `<div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">
+            <strong>sN</strong> = Shift (go to state N) &nbsp;|&nbsp;
+            <strong>rN</strong> = Reduce (apply rule N) &nbsp;|&nbsp;
+            <strong>acc</strong> = Accept
+        </div>`;
         html += `<table class="action-table"><thead><tr><th>State</th>`;
         for (const t of data.action_table.terminals) {
             html += `<th>${t}</th>`;
@@ -353,15 +462,24 @@ function renderLROutput(body, data) {
         for (const row of data.action_table.rows) {
             html += `<tr><td><strong>${row.state}</strong></td>`;
             for (const t of data.action_table.terminals) {
-                html += `<td>${row[t] || ""}</td>`;
+                const val = row[t] || "";
+                let cellClass = "";
+                if (val.startsWith("s")) cellClass = "lr-cell-shift";
+                else if (val.startsWith("r")) cellClass = "lr-cell-reduce";
+                else if (val === "acc") cellClass = "lr-cell-accept";
+                html += `<td class="${cellClass}">${val}</td>`;
             }
             html += `</tr>`;
         }
         html += `</tbody></table></div>`;
     }
 
+    // GOTO table
     if (data.goto_table) {
-        html += `<div class="summary-card"><h4>GOTO Table</h4>`;
+        html += `<div class="summary-card"><h4>📊 GOTO Table</h4>`;
+        html += `<div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">
+            After reducing a rule, tells the parser which state to jump to next
+        </div>`;
         html += `<table class="action-table"><thead><tr><th>State</th>`;
         for (const nt of data.goto_table.non_terminals) {
             html += `<th>${nt}</th>`;
@@ -375,19 +493,6 @@ function renderLROutput(body, data) {
             html += `</tr>`;
         }
         html += `</tbody></table></div>`;
-    }
-
-    if (data.trace && data.trace.length > 0) {
-        html += `<div class="summary-card"><h4>LR Parsing Trace</h4>`;
-        for (const step of data.trace) {
-            html += `<div class="trace-step">
-                <span style="min-width:180px;color:var(--accent-cyan)">${escHtml(step.state_stack)}</span>
-                <span style="min-width:120px;color:var(--accent-yellow)">${escHtml(step.sym_stack)}</span>
-                <span style="min-width:150px;color:var(--text-secondary)">${escHtml(step.input)}</span>
-                <span style="color:var(--text-primary)">${escHtml(step.action)}</span>
-            </div>`;
-        }
-        html += `</div>`;
     }
 
     html += renderErrorSummary(data);
