@@ -125,10 +125,13 @@ class ScopeManager:
     def __init__(self):
         self.current_scope: SymTable | None = None
         self.total_entries = 0
+        self.all_scopes: list[SymTable] = []
         self.begin_scope()
 
     def begin_scope(self):
-        self.current_scope = SymTable(self.current_scope)
+        new_scope = SymTable(self.current_scope)
+        self.current_scope = new_scope
+        self.all_scopes.append(new_scope)
 
     def end_scope(self):
         if self.current_scope is None:
@@ -160,8 +163,7 @@ class ScopeManager:
 
     def get_all_scopes_data(self) -> list[dict]:
         scopes_data = []
-        scope = self.current_scope
-        while scope is not None:
+        for scope in self.all_scopes:
             entries = scope.get_entries()
             entries_data = []
             for idx, e in enumerate(entries, 1):
@@ -178,11 +180,11 @@ class ScopeManager:
                 "entries": entries_data,
                 "entry_count": scope.entry_count,
             })
-            scope = scope.parent
         return scopes_data
 
     def reset(self):
         while self.current_scope is not None:
             self.current_scope = self.current_scope.parent
         self.total_entries = 0
+        self.all_scopes.clear()
         self.begin_scope()
