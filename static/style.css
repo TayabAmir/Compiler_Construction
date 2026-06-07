@@ -746,6 +746,87 @@ body.resizing-output {
 .lr-state .state-item { color: var(--text-secondary); padding: 2px 0 2px 16px; font-size: 12px; }
 .lr-state .state-trans { color: var(--accent-yellow); padding: 2px 0 2px 16px; font-size: 11px; }
 
+/* AST Tree Styles */
+.ast-tree {
+    margin: 12px 0;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.ast-node {
+    margin-left: 0;
+}
+
+.ast-root > .ast-node-label {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent-blue);
+    background: rgba(108, 99, 255, 0.1);
+    border: 1px solid rgba(108, 99, 255, 0.25);
+    border-radius: 8px;
+    padding: 8px 14px;
+}
+
+.ast-node-label {
+    padding: 4px 8px 4px 4px;
+    cursor: pointer;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-primary);
+    transition: background 0.15s;
+    user-select: none;
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    font-size: 12px;
+}
+
+.ast-node-label:hover {
+    background: var(--bg-tertiary);
+}
+
+.ast-toggle {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    text-align: center;
+    line-height: 16px;
+    font-size: 10px;
+    color: var(--accent-cyan);
+    flex-shrink: 0;
+    font-weight: 700;
+}
+
+.ast-toggle-leaf {
+    color: var(--text-muted);
+}
+
+.ast-children {
+    margin-left: 20px;
+    padding-left: 12px;
+    border-left: 1px solid var(--border-color);
+}
+
+.ast-value {
+    color: var(--accent-yellow);
+    font-weight: 600;
+}
+
+.ast-op {
+    color: var(--accent-green);
+    font-weight: 600;
+}
+
+.ast-type {
+    color: var(--accent-cyan);
+    font-style: italic;
+}
+
+.ast-line {
+    color: var(--text-muted);
+    font-size: 10px;
+}
+
 @media (max-width: 768px) {
     .sidebar { width: 60px; }
     .sidebar .logo-text, .sidebar .nav-item span:last-child, .sidebar-footer { display: none; }

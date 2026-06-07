@@ -10,6 +10,7 @@ from src.symbol_table import ScopeManager, IdentifierKind, DataType
 from src.recursive_parser import RecursiveParser
 from src.ll1_parser import LL1Parser
 from src.lr_parser import LRParser
+from src.ast import ASTNode
 
 app = Flask(__name__)
 app.config["UPLOAD_FOLDER"] = "test"
@@ -69,13 +70,34 @@ def run_recursive_parser():
     sym_table = ScopeManager()
     parser = RecursiveParser(lexer, sym_table, errors)
 
-    success = parser.parse()
+    success, _ = parser.parse()
 
     return jsonify({
         "success": success,
         "error_summary": errors.get_summary(),
         "errors": [e.to_dict() for e in errors.get_errors()],
         "symbol_table": sym_table.get_all_scopes_data(),
+    })
+
+
+@app.route("/ast", methods=["POST"])
+def run_ast():
+    data = request.get_json()
+    source = data.get("source", "")
+
+    errors = ErrorHandler()
+    lexer = Lexer(source, errors)
+    sym_table = ScopeManager()
+    parser = RecursiveParser(lexer, sym_table, errors)
+
+    success, ast = parser.parse()
+    ast_data = ast.to_dict() if ast else None
+
+    return jsonify({
+        "success": success,
+        "ast": ast_data,
+        "error_summary": errors.get_summary(),
+        "errors": [e.to_dict() for e in errors.get_errors()],
     })
 
 
@@ -181,7 +203,7 @@ def run_full_compilation():
     lexer2 = Lexer(source, errors2)
     sym_table = ScopeManager()
     parser_rd = RecursiveParser(lexer2, sym_table, errors2)
-    rd_success = parser_rd.parse()
+    rd_success, _ = parser_rd.parse()
     results["recursive"] = {
         "success": rd_success,
         "errors": [e.to_dict() for e in errors2.get_errors()],

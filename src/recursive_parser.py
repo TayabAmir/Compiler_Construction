@@ -4,6 +4,7 @@ from .token import Token, TokenType
 from .lexer import Lexer
 from .symbol_table import ScopeManager, IdentifierKind, DataType
 from .error_handler import ErrorHandler, ErrorType
+from .ast import ASTNode, ASTNodeType, make_node
 
 
 class RecursiveParser:
@@ -31,24 +32,27 @@ class RecursiveParser:
             while self.lookahead.type not in sync_set:
                 self.next_token()
 
-    def parse(self) -> bool:
+    def parse(self) -> tuple[bool, ASTNode | None]:
         self.has_error = False
         self.next_token()
-        self._program()
+        ast = self._program()
         if self.lookahead.type != TokenType.EOF:
             self.errors.report(ErrorType.SYNTAX, "Unexpected tokens after end of program",
                                self.lookahead.line, self.lookahead.col)
             self.has_error = True
-        return not self.has_error and not self.errors.has_errors()
+        success = not self.has_error and not self.errors.has_errors()
+        return success, ast
 
-    def _program(self):
+    def _program(self) -> ASTNode | None:
+        node = make_node(ASTNodeType.PROGRAM)
         if self.lookahead.type != TokenType.KW_PROGRAM:
             self.has_error = True
             self.errors.report(ErrorType.SYNTAX, "Expected 'program' keyword at start",
                                self.lookahead.line, self.lookahead.col)
-            return
+            return node
         self.match(TokenType.KW_PROGRAM, "'program'")
         if self.lookahead.type == TokenType.IDENTIFIER:
+            node.name = self.lookahead.lexeme
             self.sym_table.insert(self.lookahead.lexeme, IdentifierKind.CLASS, DataType.USER_DEFINED, self.lookahead.line)
             self.match(TokenType.IDENTIFIER, "identifier (program name)")
         else:
@@ -57,21 +61,32 @@ class RecursiveParser:
 
         while self.lookahead.type in (TokenType.KW_FINAL, TokenType.KW_CLASS, TokenType.IDENTIFIER):
             if self.lookahead.type == TokenType.KW_FINAL:
-                self._const_decl()
+                child = self._const_decl()
+                if child:
+                    node.add_child(child)
             elif self.lookahead.type == TokenType.KW_CLASS:
-                self._class_decl()
+                child = self._class_decl()
+                if child:
+                    node.add_child(child)
             else:
-                self._var_decl()
+                child = self._var_decl()
+                if child:
+                    node.add_child(child)
 
         self.match(TokenType.SYM_LBRACE, "'{'")
         while self.lookahead.type not in (TokenType.SYM_RBRACE, TokenType.EOF):
-            self._method_decl()
+            child = self._method_decl()
+            if child:
+                node.add_child(child)
         self.match(TokenType.SYM_RBRACE, "'}'")
+        return node
 
-    def _const_decl(self):
+    def _const_decl(self) -> ASTNode | None:
         self.match(TokenType.KW_FINAL, "'final'")
-        self._type()
+        dtype = self._type()
         name = self.lookahead.lexeme
+        line = self.lookahead.line
+        col = self.lookahead.col
         if self.lookahead.type == TokenType.IDENTIFIER:
             if self.sym_table.lookup_current(name) is not None:
                 self.errors.report(ErrorType.SEMANTIC, f"Duplicate constant '{name}'", self.lookahead.line, self.lookahead.col)
@@ -79,22 +94,30 @@ class RecursiveParser:
                 self.sym_table.insert(name, IdentifierKind.CONSTANT, DataType.INT, self.lookahead.line)
             self.match(TokenType.IDENTIFIER, "identifier (constant name)")
         self.match(TokenType.SYM_ASSIGN, "'='")
+        value = None
         if self.lookahead.type == TokenType.NUMBER:
+            value = self.lookahead.lexeme
             self.match(TokenType.NUMBER, "number")
         elif self.lookahead.type == TokenType.CHAR_CONST:
+            value = self.lookahead.lexeme
             self.match(TokenType.CHAR_CONST, "char constant")
         else:
             self.errors.report(ErrorType.SYNTAX, "Expected number or char constant", self.lookahead.line, self.lookahead.col)
         self.match(TokenType.SYM_SEMICOL, "';'")
+        return make_node(ASTNodeType.CONST_DECL, name=name, value=value, data_type=dtype, line=line, col=col)
 
-    def _var_decl(self):
-        self._type()
+    def _var_decl(self) -> ASTNode | None:
+        dtype = self._type()
+        line = self.lookahead.line
+        col = self.lookahead.col
+        names = []
         name = self.lookahead.lexeme
         if self.lookahead.type == TokenType.IDENTIFIER:
             if self.sym_table.lookup_current(name) is not None:
                 self.errors.report(ErrorType.SEMANTIC, f"Duplicate variable '{name}'", self.lookahead.line, self.lookahead.col)
             else:
                 self.sym_table.insert(name, IdentifierKind.VARIABLE, DataType.INT, self.lookahead.line)
+            names.append(name)
             self.match(TokenType.IDENTIFIER, "identifier (variable name)")
         while self.lookahead.type == TokenType.SYM_COMMA:
             self.match(TokenType.SYM_COMMA, "','")
@@ -104,25 +127,38 @@ class RecursiveParser:
                     self.errors.report(ErrorType.SEMANTIC, f"Duplicate variable '{name}'", self.lookahead.line, self.lookahead.col)
                 else:
                     self.sym_table.insert(name, IdentifierKind.VARIABLE, DataType.INT, self.lookahead.line)
+                names.append(name)
                 self.match(TokenType.IDENTIFIER, "identifier (variable name)")
         self.match(TokenType.SYM_SEMICOL, "';'")
+        return make_node(ASTNodeType.VAR_DECL, names=names, data_type=dtype, line=line, col=col)
 
-    def _class_decl(self):
+    def _class_decl(self) -> ASTNode | None:
         self.match(TokenType.KW_CLASS, "'class'")
         name = self.lookahead.lexeme
+        line = self.lookahead.line
+        col = self.lookahead.col
         if self.lookahead.type == TokenType.IDENTIFIER:
-            self.sym_table.insert(name, IdentifierKind.CLASS, DataType.USER_DEFINED, self.lookahead.line)
+            self.sym_table.insert(name, IdentifierKind.CLASS, DataType.USER_DEFINED, line)
             self.match(TokenType.IDENTIFIER, "identifier (class name)")
+        node = make_node(ASTNodeType.CLASS_DECL, name=name, line=line, col=col)
         self.match(TokenType.SYM_LBRACE, "'{'")
         while self.lookahead.type == TokenType.IDENTIFIER:
-            self._var_decl()
+            child = self._var_decl()
+            if child:
+                node.add_child(child)
         self.match(TokenType.SYM_RBRACE, "'}'")
+        return node
 
-    def _method_decl(self):
+    def _method_decl(self) -> ASTNode | None:
+        line = self.lookahead.line
+        col = self.lookahead.col
         if self.lookahead.type == TokenType.KW_VOID:
+            return_type = "void"
             self.match(TokenType.KW_VOID, "'void'")
         else:
-            self._type()
+            return_type = self._type()
+            if return_type is None:
+                return_type = "int"
 
         name = self.lookahead.lexeme
         if self.lookahead.type == TokenType.IDENTIFIER:
@@ -132,121 +168,179 @@ class RecursiveParser:
                 self.sym_table.insert(name, IdentifierKind.FUNCTION, DataType.INT, self.lookahead.line)
             self.match(TokenType.IDENTIFIER, "identifier (method name)")
 
+        node = make_node(ASTNodeType.METHOD_DECL, name=name, return_type=return_type, line=line, col=col)
+
         self.match(TokenType.SYM_LPAREN, "'('")
         self.sym_table.begin_scope()
 
         if self.lookahead.type == TokenType.IDENTIFIER:
-            self._type()
+            ptype = self._type()
             pname = self.lookahead.lexeme
             if self.lookahead.type == TokenType.IDENTIFIER:
                 self.sym_table.insert(pname, IdentifierKind.PARAMETER, DataType.INT, self.lookahead.line)
+                node.add_child(make_node(ASTNodeType.PARAMETER, name=pname, data_type=ptype, line=self.lookahead.line, col=self.lookahead.col))
                 self.match(TokenType.IDENTIFIER, "identifier (parameter name)")
             while self.lookahead.type == TokenType.SYM_COMMA:
                 self.match(TokenType.SYM_COMMA, "','")
-                self._type()
+                ptype = self._type()
                 pname = self.lookahead.lexeme
                 if self.lookahead.type == TokenType.IDENTIFIER:
                     self.sym_table.insert(pname, IdentifierKind.PARAMETER, DataType.INT, self.lookahead.line)
+                    node.add_child(make_node(ASTNodeType.PARAMETER, name=pname, data_type=ptype, line=self.lookahead.line, col=self.lookahead.col))
                     self.match(TokenType.IDENTIFIER, "identifier (parameter name)")
 
         self.match(TokenType.SYM_RPAREN, "')'")
 
         while self.lookahead.type == TokenType.IDENTIFIER:
-            self._var_decl()
-        self._block()
+            child = self._var_decl()
+            if child:
+                node.add_child(child)
+
+        block_node = self._block()
+        if block_node:
+            node.add_child(block_node)
 
         self.sym_table.end_scope()
+        return node
 
-    def _type(self):
+    def _type(self) -> str | None:
         if self.lookahead.type == TokenType.IDENTIFIER:
+            name = self.lookahead.lexeme
             self.match(TokenType.IDENTIFIER, "type identifier")
             if self.lookahead.type == TokenType.SYM_LBRACK:
                 self.match(TokenType.SYM_LBRACK, "'['")
                 self.match(TokenType.SYM_RBRACK, "']'")
+                return name + "[]"
+            return name
         else:
             self.errors.report(ErrorType.SYNTAX, "Expected type identifier", self.lookahead.line, self.lookahead.col)
             self.has_error = True
+            return None
 
-    def _block(self):
+    def _block(self) -> ASTNode | None:
+        node = make_node(ASTNodeType.BLOCK)
         self.match(TokenType.SYM_LBRACE, "'{'")
         while self.lookahead.type not in (TokenType.SYM_RBRACE, TokenType.EOF):
-            self._statement()
+            child = self._statement()
+            if child:
+                node.add_child(child)
         self.match(TokenType.SYM_RBRACE, "'}'")
+        return node
 
-    def _statement(self):
+    def _statement(self) -> ASTNode | None:
         if self.lookahead.type == TokenType.IDENTIFIER:
-            self._designator()
+            desig = self._designator()
             if self.lookahead.type == TokenType.SYM_ASSIGN:
                 self.match(TokenType.SYM_ASSIGN, "'='")
-                self._expr()
+                expr = self._expr()
+                self.match(TokenType.SYM_SEMICOL, "';'")
+                return make_node(ASTNodeType.ASSIGN_STMT, line=desig.line if desig else 0, col=desig.col if desig else 0,
+                                 children=[desig, expr] if desig and expr else [n for n in (desig, expr) if n])
             elif self.lookahead.type == TokenType.SYM_LPAREN:
                 self._act_pars()
+                self.match(TokenType.SYM_SEMICOL, "';'")
+                return make_node(ASTNodeType.CALL_STMT, children=[desig] if desig else [])
             else:
                 self.errors.report(ErrorType.SYNTAX, "Expected '=' or '(' after designator",
                                    self.lookahead.line, self.lookahead.col)
                 self.has_error = True
-            self.match(TokenType.SYM_SEMICOL, "';'")
+                self.match(TokenType.SYM_SEMICOL, "';'")
+                return None
         elif self.lookahead.type == TokenType.KW_IF:
+            line = self.lookahead.line
+            col = self.lookahead.col
             self.match(TokenType.KW_IF, "'if'")
             self.match(TokenType.SYM_LPAREN, "'('")
-            self._condition()
+            cond = self._condition()
             self.match(TokenType.SYM_RPAREN, "')'")
-            self._statement()
+            then_stmt = self._statement()
+            else_stmt = None
             if self.lookahead.type == TokenType.KW_ELSE:
                 self.match(TokenType.KW_ELSE, "'else'")
-                self._statement()
+                else_stmt = self._statement()
+            children = [n for n in (cond, then_stmt, else_stmt) if n]
+            return make_node(ASTNodeType.IF_STMT, line=line, col=col, children=children)
         elif self.lookahead.type == TokenType.KW_WHILE:
+            line = self.lookahead.line
+            col = self.lookahead.col
             self.match(TokenType.KW_WHILE, "'while'")
             self.match(TokenType.SYM_LPAREN, "'('")
-            self._condition()
+            cond = self._condition()
             self.match(TokenType.SYM_RPAREN, "')'")
-            self._statement()
+            body = self._statement()
+            children = [n for n in (cond, body) if n]
+            return make_node(ASTNodeType.WHILE_STMT, line=line, col=col, children=children)
         elif self.lookahead.type == TokenType.KW_RETURN:
+            line = self.lookahead.line
+            col = self.lookahead.col
             self.match(TokenType.KW_RETURN, "'return'")
+            expr = None
             if self.lookahead.type != TokenType.SYM_SEMICOL:
-                self._expr()
+                expr = self._expr()
             self.match(TokenType.SYM_SEMICOL, "';'")
+            children = [expr] if expr else []
+            return make_node(ASTNodeType.RETURN_STMT, line=line, col=col, children=children)
         elif self.lookahead.type == TokenType.KW_READ:
+            line = self.lookahead.line
+            col = self.lookahead.col
             self.match(TokenType.KW_READ, "'read'")
             self.match(TokenType.SYM_LPAREN, "'('")
-            self._designator()
+            desig = self._designator()
             self.match(TokenType.SYM_RPAREN, "')'")
             self.match(TokenType.SYM_SEMICOL, "';'")
+            return make_node(ASTNodeType.READ_STMT, line=line, col=col, children=[desig] if desig else [])
         elif self.lookahead.type == TokenType.KW_PRINT:
+            line = self.lookahead.line
+            col = self.lookahead.col
             self.match(TokenType.KW_PRINT, "'print'")
             self.match(TokenType.SYM_LPAREN, "'('")
-            self._expr()
+            expr = self._expr()
+            width = None
             if self.lookahead.type == TokenType.SYM_COMMA:
                 self.match(TokenType.SYM_COMMA, "','")
+                width = self.lookahead.lexeme
                 self.match(TokenType.NUMBER, "number")
             self.match(TokenType.SYM_RPAREN, "')'")
             self.match(TokenType.SYM_SEMICOL, "';'")
+            children = [expr] if expr else []
+            return make_node(ASTNodeType.PRINT_STMT, line=line, col=col, width=width, children=children)
         elif self.lookahead.type == TokenType.SYM_LBRACE:
-            self._block()
+            return self._block()
         elif self.lookahead.type == TokenType.SYM_SEMICOL:
             self.match(TokenType.SYM_SEMICOL, "';'")
+            return make_node(ASTNodeType.EMPTY_STMT)
         else:
             self.has_error = True
             self.errors.report(ErrorType.SYNTAX, f"Unexpected token in statement: {self.lookahead.lexeme}",
                                self.lookahead.line, self.lookahead.col)
             self.next_token()
+            return None
 
-    def _designator(self):
+    def _designator(self) -> ASTNode | None:
+        line = self.lookahead.line
+        col = self.lookahead.col
+        name = None
         if self.lookahead.type == TokenType.IDENTIFIER:
             name = self.lookahead.lexeme
             if self.sym_table.lookup(name) is None:
                 self.errors.report(ErrorType.SEMANTIC, f"Undeclared identifier '{name}'",
                                    self.lookahead.line, self.lookahead.col)
             self.match(TokenType.IDENTIFIER, "identifier")
+        node = make_node(ASTNodeType.DESIGNATOR, name=name, line=line, col=col)
         while self.lookahead.type in (TokenType.SYM_DOT, TokenType.SYM_LBRACK):
             if self.lookahead.type == TokenType.SYM_DOT:
                 self.match(TokenType.SYM_DOT, "'.'")
                 if self.lookahead.type == TokenType.IDENTIFIER:
+                    member = self.lookahead.lexeme
                     self.match(TokenType.IDENTIFIER, "identifier")
+                    node.add_child(make_node(ASTNodeType.IDENTIFIER, name=member))
             else:
                 self.match(TokenType.SYM_LBRACK, "'['")
-                self._expr()
+                expr = self._expr()
                 self.match(TokenType.SYM_RBRACK, "']'")
+                if expr:
+                    node.add_child(expr)
+        return node
 
     def _act_pars(self):
         self.match(TokenType.SYM_LPAREN, "'('")
@@ -257,55 +351,117 @@ class RecursiveParser:
                 self._expr()
         self.match(TokenType.SYM_RPAREN, "')'")
 
-    def _condition(self):
-        self._expr()
-        self._relop()
-        self._expr()
+    def _condition(self) -> ASTNode | None:
+        line = self.lookahead.line
+        col = self.lookahead.col
+        left = self._expr()
+        op = self._relop()
+        right = self._expr()
+        return make_node(ASTNodeType.CONDITION, op=op, line=line, col=col,
+                         children=[n for n in (left, right) if n])
 
-    def _relop(self):
-        if self.lookahead.type in (TokenType.OP_EQ, TokenType.OP_NEQ, TokenType.OP_GT,
-                                    TokenType.OP_GE, TokenType.OP_LT, TokenType.OP_LE):
+    def _relop(self) -> str | None:
+        if self.lookahead.type == TokenType.OP_EQ:
+            op = "=="
+            self.next_token()
+        elif self.lookahead.type == TokenType.OP_NEQ:
+            op = "!="
+            self.next_token()
+        elif self.lookahead.type == TokenType.OP_GT:
+            op = ">"
+            self.next_token()
+        elif self.lookahead.type == TokenType.OP_GE:
+            op = ">="
+            self.next_token()
+        elif self.lookahead.type == TokenType.OP_LT:
+            op = "<"
+            self.next_token()
+        elif self.lookahead.type == TokenType.OP_LE:
+            op = "<="
             self.next_token()
         else:
             self.has_error = True
             self.errors.report(ErrorType.SYNTAX, "Expected relational operator", self.lookahead.line, self.lookahead.col)
+            op = None
+        return op
 
-    def _expr(self):
+    def _expr(self) -> ASTNode | None:
+        line = self.lookahead.line
+        col = self.lookahead.col
         if self.lookahead.type == TokenType.OP_MINUS:
             self.match(TokenType.OP_MINUS, "'-'")
-        self._term()
+            term = self._term()
+            unary = make_node(ASTNodeType.UNARY_OP, op="-", line=line, col=col)
+            if term:
+                unary.add_child(term)
+            left = unary
+        else:
+            left = self._term()
+
         while self.lookahead.type in (TokenType.OP_PLUS, TokenType.OP_MINUS):
+            op = self.lookahead.lexeme
             self.match(self.lookahead.type, self.lookahead.lexeme)
-            self._term()
+            right = self._term()
+            binop = make_node(ASTNodeType.BINARY_OP, op=op, line=line, col=col)
+            if left:
+                binop.add_child(left)
+            if right:
+                binop.add_child(right)
+            left = binop
+        return left
 
-    def _term(self):
-        self._factor()
+    def _term(self) -> ASTNode | None:
+        line = self.lookahead.line
+        col = self.lookahead.col
+        left = self._factor()
         while self.lookahead.type in (TokenType.OP_MULT, TokenType.OP_DIV, TokenType.OP_MOD):
+            op = self.lookahead.lexeme
             self.match(self.lookahead.type, "'*' or '/' or '%'")
-            self._factor()
+            right = self._factor()
+            binop = make_node(ASTNodeType.BINARY_OP, op=op, line=line, col=col)
+            if left:
+                binop.add_child(left)
+            if right:
+                binop.add_child(right)
+            left = binop
+        return left
 
-    def _factor(self):
+    def _factor(self) -> ASTNode | None:
+        line = self.lookahead.line
+        col = self.lookahead.col
         if self.lookahead.type == TokenType.IDENTIFIER:
-            self._designator()
+            desig = self._designator()
             if self.lookahead.type == TokenType.SYM_LPAREN:
                 self._act_pars()
+                return make_node(ASTNodeType.CALL_STMT, children=[desig] if desig else [])
+            return desig
         elif self.lookahead.type == TokenType.NUMBER:
+            value = self.lookahead.lexeme
             self.match(TokenType.NUMBER, "number")
+            return make_node(ASTNodeType.NUMBER_LITERAL, value=value, line=line, col=col)
         elif self.lookahead.type == TokenType.CHAR_CONST:
+            value = self.lookahead.lexeme
             self.match(TokenType.CHAR_CONST, "char constant")
+            return make_node(ASTNodeType.CHAR_LITERAL, value=value, line=line, col=col)
         elif self.lookahead.type == TokenType.KW_NEW:
             self.match(TokenType.KW_NEW, "'new'")
             if self.lookahead.type == TokenType.IDENTIFIER:
+                name = self.lookahead.lexeme
                 self.match(TokenType.IDENTIFIER, "identifier")
+                size_expr = None
                 if self.lookahead.type == TokenType.SYM_LBRACK:
                     self.match(TokenType.SYM_LBRACK, "'['")
-                    self._expr()
+                    size_expr = self._expr()
                     self.match(TokenType.SYM_RBRACK, "']'")
+                children = [size_expr] if size_expr else []
+                return make_node(ASTNodeType.NEW_EXPR, name=name, line=line, col=col, children=children)
         elif self.lookahead.type == TokenType.SYM_LPAREN:
             self.match(TokenType.SYM_LPAREN, "'('")
-            self._expr()
+            expr = self._expr()
             self.match(TokenType.SYM_RPAREN, "')'")
+            return expr
         else:
             self.has_error = True
             self.errors.report(ErrorType.SYNTAX, "Invalid expression factor", self.lookahead.line, self.lookahead.col)
             self.next_token()
+            return None
