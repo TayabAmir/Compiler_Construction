@@ -66,6 +66,43 @@ def run_lexer(source: str):
     return tokens
 
 
+def run_ast(source: str):
+    errors = ErrorHandler()
+    lexer = Lexer(source, errors)
+    sym_table = ScopeManager()
+    parser = RecursiveParser(lexer, sym_table, errors)
+
+    print_header("ABSTRACT SYNTAX TREE (AST) OUTPUT")
+    success, ast = parser.parse()
+    print(f"  Result: {'[PASS]' if success else '[FAIL]'}")
+    print_separator()
+    if ast:
+        print("  AST (tree view):")
+        _print_ast(ast, 2)
+    else:
+        print("  (no AST produced)")
+    print_separator()
+    print_summary(errors)
+    return success
+
+
+def _print_ast(node, indent: int = 0):
+    if node is None:
+        return
+    prefix = "  " * indent
+    label = node.node_type.value
+    attrs = []
+    for attr in ("name", "value", "op", "data_type", "return_type", "width"):
+        if hasattr(node, attr) and getattr(node, attr) is not None:
+            attrs.append(f"{attr}={getattr(node, attr)}")
+    if hasattr(node, "names") and node.names:
+        attrs.append(f"names={node.names}")
+    attr_str = f" ({', '.join(attrs)})" if attrs else ""
+    print(f"{prefix}|-- {label}{attr_str}")
+    for child in node.children:
+        _print_ast(child, indent + 1)
+
+
 def run_recursive_parser(source: str):
     errors = ErrorHandler()
     lexer = Lexer(source, errors)
@@ -412,12 +449,13 @@ def interactive_mode():
     print("\n  Choose module to run:")
     print("    1. Lexical Analyzer")
     print("    2. Recursive Descent Parser")
-    print("    3. LL(1) Predictive Parser")
-    print("    4. LR Parser (SLR(1))")
-    print("    5. Symbol Table Manager")
-    print("    6. Full Compilation (All)")
-    print("    7. Grammar Info & Tables")
-    print("    8. All of the above")
+    print("    3. Abstract Syntax Tree (AST)")
+    print("    4. LL(1) Predictive Parser")
+    print("    5. LR Parser (SLR(1))")
+    print("    6. Symbol Table Manager")
+    print("    7. Full Compilation (All)")
+    print("    8. Grammar Info & Tables")
+    print("    9. All of the above")
     print()
     try:
         choice = input("  Enter choice (1-8): ").strip()
@@ -429,18 +467,21 @@ def interactive_mode():
     elif choice == "2":
         run_recursive_parser(source)
     elif choice == "3":
-        run_ll1_parser(source)
+        run_ast(source)
     elif choice == "4":
-        run_lr_parser(source)
+        run_ll1_parser(source)
     elif choice == "5":
-        run_symbol_table(source)
+        run_lr_parser(source)
     elif choice == "6":
-        run_full_compilation(source)
+        run_symbol_table(source)
     elif choice == "7":
-        print_grammar_info()
+        run_full_compilation(source)
     elif choice == "8":
+        print_grammar_info()
+    elif choice == "9":
         run_lexer(source)
         run_recursive_parser(source)
+        run_ast(source)
         run_ll1_parser(source)
         run_lr_parser(source)
         run_symbol_table(source)
@@ -460,6 +501,7 @@ def main():
         print("  Modules:")
         print("    lexer        Run lexical analyzer")
         print("    recursive    Run recursive descent parser")
+        print("    ast          Show abstract syntax tree (AST)")
         print("    ll1          Run LL(1) predictive parser")
         print("    lr           Run LR parser (SLR(1))")
         print("    symbol_table Run symbol table manager")
@@ -469,6 +511,7 @@ def main():
         print()
         print("  Examples:")
         print(f"    python {os.path.basename(__file__)} lexer test\\test_simple.mj")
+        print(f"    python {os.path.basename(__file__)} ast test_simple.mj")
         print(f"    python {os.path.basename(__file__)} ll1 test_simple.mj")
         print(f"    python {os.path.basename(__file__)} grammar")
         print(f"    python {os.path.basename(__file__)} interactive")
@@ -498,6 +541,8 @@ def main():
         run_lexer(source)
     elif module == "recursive":
         run_recursive_parser(source)
+    elif module == "ast":
+        run_ast(source)
     elif module == "ll1":
         run_ll1_parser(source)
     elif module == "lr":
@@ -508,7 +553,7 @@ def main():
         run_full_compilation(source)
     else:
         print(f"[ERROR] Unknown module: '{module}'")
-        print(f"  Available: lexer, recursive, ll1, lr, symbol_table, full, grammar, interactive")
+        print(f"  Available: lexer, recursive, ast, ll1, lr, symbol_table, full, grammar, interactive")
         sys.exit(1)
 
 

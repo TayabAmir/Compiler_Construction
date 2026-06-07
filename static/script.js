@@ -3,6 +3,7 @@ let currentModule = "lexer";
 const moduleNames = {
     lexer: "Lexical Analyzer",
     recursive: "Recursive Descent Parser",
+    ast: "Abstract Syntax Tree",
     ll1: "LL(1) Predictive Parser",
     lr: "LR Parser (SLR(1))",
     symbol_table: "Symbol Table Manager",
@@ -28,6 +29,7 @@ function getPlaceholder(module) {
     const msgs = {
         lexer: "Tokenize source code into a stream of tokens.",
         recursive: "Parse using recursive descent parsing routines.",
+        ast: "View the Abstract Syntax Tree built by the parser.",
         ll1: "Parse using LL(1) predictive parsing table.",
         lr: "Parse using SLR(1) shift-reduce parser.",
         symbol_table: "View symbol table with nested scopes.",
@@ -81,6 +83,7 @@ function runModule() {
     const endpoints = {
         lexer: "/lexer",
         recursive: "/recursive_parser",
+        ast: "/ast",
         ll1: "/ll1_parser",
         lr: "/lr_parser",
         symbol_table: "/symbol_table",
@@ -133,6 +136,9 @@ function renderOutput(module, data) {
         case "recursive":
             renderRecursiveOutput(body, data);
             break;
+        case "ast":
+            renderASTOutput(body, data);
+            break;
         case "ll1":
             renderLL1Output(body, data);
             break;
@@ -178,6 +184,49 @@ function renderRecursiveOutput(body, data) {
     html += renderSymbolTableHTML(data.symbol_table);
     html += renderErrorSummary(data);
     body.innerHTML = html;
+}
+
+function renderASTOutput(body, data) {
+    let html = `<div class="summary-card"><h4>Abstract Syntax Tree</h4>`;
+    html += `<div class="module-result ${data.success ? 'pass' : 'fail'}">
+        ${data.success ? '✓' : '✗'} ${data.success ? 'Parsing Successful!' : 'Parsing Failed'}
+    </div>`;
+
+    if (data.ast) {
+        html += `<div class="ast-container">${renderASTNode(data.ast)}</div>`;
+    } else {
+        html += `<div class="info-msg">No AST produced.</div>`;
+    }
+    html += `</div>`;
+    html += renderErrorSummary(data);
+    body.innerHTML = html;
+}
+
+function renderASTNode(node) {
+    if (!node) return "";
+    let label = `<strong>${escHtml(node.type)}</strong>`;
+    const attrs = [];
+    for (const attr of ["name", "value", "op", "data_type", "return_type", "width"]) {
+        if (node[attr] !== undefined && node[attr] !== null) {
+            attrs.push(`<span class="ast-attr">${attr}=${escHtml(String(node[attr]))}</span>`);
+        }
+    }
+    if (node.names && node.names.length > 0) {
+        attrs.push(`<span class="ast-attr">names=[${node.names.map(n => escHtml(n)).join(", ")}]</span>`);
+    }
+    if (attrs.length > 0) {
+        label += ` <span class="ast-attrs">(${attrs.join(", ")})</span>`;
+    }
+    let html = `<div class="ast-node"><div class="ast-label">${label}</div>`;
+    if (node.children && node.children.length > 0) {
+        html += `<div class="ast-children">`;
+        for (const child of node.children) {
+            html += renderASTNode(child);
+        }
+        html += `</div>`;
+    }
+    html += `</div>`;
+    return html;
 }
 
 function renderLL1Output(body, data) {

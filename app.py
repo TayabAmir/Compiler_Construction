@@ -70,13 +70,14 @@ def run_recursive_parser():
     sym_table = ScopeManager()
     parser = RecursiveParser(lexer, sym_table, errors)
 
-    success, _ = parser.parse()
+    success, ast = parser.parse()
 
     return jsonify({
         "success": success,
         "error_summary": errors.get_summary(),
         "errors": [e.to_dict() for e in errors.get_errors()],
         "symbol_table": sym_table.get_all_scopes_data(),
+        "ast": ast.to_dict() if ast else None,
     })
 
 
