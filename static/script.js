@@ -219,11 +219,7 @@ function renderLL1Output(body, data) {
     if (data.trace && data.trace.length > 0) {
         html += `<div class="summary-card"><h4>Parsing Trace</h4>`;
         for (const step of data.trace) {
-            html += `<div class="trace-step">
-                <span style="min-width:200px;color:var(--accent-cyan)">${escHtml(step.stack)}</span>
-                <span style="min-width:150px;color:var(--accent-yellow)">${escHtml(step.input)}</span>
-                <span style="color:var(--text-secondary)">${escHtml(step.action)}</span>
-            </div>`;
+            html += renderTraceStep(step.stack, step.input, step.action, "ll1");
         }
         html += `</div>`;
     }
@@ -291,6 +287,12 @@ function renderLROutput(body, data) {
             } else if (action === "ACCEPT") {
                 badgeClass = "lr-badge-accept";
                 badgeText = "✅ ACCEPT";
+            } else if (action.includes("PHRASE-LEVEL RECOVERY") || action.includes("PHRASE-RECOVERY")) {
+                badgeClass = "lr-badge-phrase";
+                badgeText = "🔄 PHRASE";
+            } else if (action.includes("PANIC-MODE") || action.includes("PANIC-RECOVERY")) {
+                badgeClass = "lr-badge-panic";
+                badgeText = "⏭ PANIC";
             } else if (action.startsWith("ERROR") || action.startsWith("error")) {
                 badgeClass = "lr-badge-error";
                 badgeText = "⚠️ ERROR";
@@ -328,6 +330,14 @@ function renderLROutput(body, data) {
                 <div class="lr-legend-item">
                     <span class="lr-badge-error">⚠️ ERROR</span>
                     <span>The parser encountered something unexpected — a syntax error in the program</span>
+                </div>
+                <div class="lr-legend-item">
+                    <span class="lr-badge-phrase">🔄 PHRASE</span>
+                    <span>Phrase-level recovery — skip to the next statement or block boundary (; or })</span>
+                </div>
+                <div class="lr-legend-item">
+                    <span class="lr-badge-panic">⏭ PANIC</span>
+                    <span>Panic-mode recovery — pop stack or skip tokens to continue parsing</span>
                 </div>
             </div>
         </div>`;
@@ -467,17 +477,14 @@ function renderFullOutput(body, data) {
     html += `<div class="summary-card"><h4>LL(1) Parsing Trace</h4>`;
     const ll1Trace = data.ll1.trace || [];
     for (const step of ll1Trace.slice(0, 20)) {
-        html += `<div class="trace-step">
-            <span style="min-width:200px;color:var(--accent-cyan)">${escHtml(step.stack)}</span>
-            <span style="min-width:150px;color:var(--accent-yellow)">${escHtml(step.input)}</span>
-            <span style="color:var(--text-secondary)">${escHtml(step.action)}</span>
-        </div>`;
+        html += renderTraceStep(step.stack, step.input, step.action, "ll1");
     }
     if (ll1Trace.length > 20) {
         html += `<div class="info-msg">... and ${ll1Trace.length - 20} more steps</div>`;
     }
     html += `</div>`;
 
+    html += renderAllModuleErrors(data);
     body.innerHTML = html;
 }
 
@@ -614,6 +621,68 @@ function renderSymbolTableHTML(symbolTable) {
     return html;
 }
 
+function recoveryBadge(recoveryAction) {
+    if (!recoveryAction) return "";
+    const isPhrase = recoveryAction.includes("phrase-level");
+    const cls = isPhrase ? "recovery-badge phrase" : "recovery-badge panic";
+    const label = isPhrase ? "Phrase recovery" : "Panic recovery";
+    return `<span class="${cls}">${label}</span>`;
+}
+
+function formatErrorLine(e) {
+    let html = `<div class="error-msg">`;
+    html += `<span class="error-type">[${escHtml(e.type)}]</span> `;
+    html += `Line ${e.line}, Col ${e.col}: ${escHtml(e.message)}`;
+    if (e.recovery_action) {
+        html += ` ${recoveryBadge(e.recovery_action)}`;
+        html += `<div class="recovery-detail">${escHtml(e.recovery_action)}</div>`;
+    }
+    html += `</div>`;
+    return html;
+}
+
+function renderTraceStep(stack, input, action, mode = "ll1") {
+    const act = action || "";
+    let actionClass = "trace-action";
+    if (act.includes("PHRASE-RECOVERY") || act.includes("PHRASE-LEVEL")) {
+        actionClass = "trace-action phrase";
+    } else if (act.includes("PANIC-RECOVERY") || act.includes("PANIC-MODE")) {
+        actionClass = "trace-action panic";
+    } else if (act.startsWith("ERROR")) {
+        actionClass = "trace-action error";
+    }
+
+    if (mode === "ll1") {
+        return `<div class="trace-step">
+            <span style="min-width:200px;color:var(--accent-cyan)">${escHtml(stack)}</span>
+            <span style="min-width:150px;color:var(--accent-yellow)">${escHtml(input)}</span>
+            <span class="${actionClass}">${escHtml(act)}</span>
+        </div>`;
+    }
+    return "";
+}
+
+function renderAllModuleErrors(data) {
+    const sections = [
+        ["Recursive Descent", data.recursive?.errors],
+        ["LL(1) Predictive", data.ll1?.errors],
+        ["LR Parser", data.lr?.errors],
+    ];
+    const hasErrors = sections.some(([, errs]) => errs && errs.length > 0);
+    if (!hasErrors) return "";
+
+    let html = `<div class="summary-card"><h4>Error Details (with Recovery)</h4>`;
+    for (const [title, errors] of sections) {
+        if (!errors || errors.length === 0) continue;
+        html += `<h5 style="margin:12px 0 6px;color:var(--text-secondary)">${title}</h5>`;
+        for (const e of errors) {
+            html += formatErrorLine(e);
+        }
+    }
+    html += `</div>`;
+    return html;
+}
+
 function renderErrorSummary(data) {
     if (!data.error_summary) return "";
     const s = data.error_summary;
@@ -627,7 +696,7 @@ function renderErrorSummary(data) {
 
     if (data.errors && data.errors.length > 0) {
         for (const e of data.errors) {
-            html += `<div class="error-msg">[${e.type}] Line ${e.line}, Col ${e.col}: ${escHtml(e.message)}</div>`;
+            html += formatErrorLine(e);
         }
     }
     html += `</div>`;

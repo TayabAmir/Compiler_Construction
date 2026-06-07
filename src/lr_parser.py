@@ -658,8 +658,11 @@ class LRParser:
             return tokens[idx].line, tokens[idx].col
         return 0, 0
 
+    PHRASE_SYNC_TOKENS = ("SYM_SEMICOL", "SYM_RBRACE")
+    PHRASE_NON_TERMINALS = ("Stmt", "StmtSeq", "Block", "VarDecl", "MethodDecl")
+
     def _error_recovery(self, state_stack: list[int], sym_stack: list[str], a: str) -> bool:
-        """Panic-mode recovery using error entries: pop until a shift on a is possible."""
+        """Panic-mode recovery: pop until a shift on the current token is possible."""
         while len(state_stack) > 1:
             state_stack.pop()
             if sym_stack:
@@ -668,6 +671,45 @@ class LRParser:
             if top in self.action and a in self.action[top] and self.action[top][a].startswith("s"):
                 return True
         return False
+
+    def _phrase_error_recovery(
+        self,
+        state_stack: list[int],
+        sym_stack: list[str],
+        input_tokens: list[str],
+        ip: int,
+    ) -> tuple[bool, int, str]:
+        """Phrase-level recovery: scan to ; or } and resume at a phrase boundary."""
+        sync_idx = None
+        sync_token = None
+        for j in range(ip, len(input_tokens)):
+            if input_tokens[j] in self.PHRASE_SYNC_TOKENS:
+                sync_token = input_tokens[j]
+                sync_idx = j
+                break
+
+        if sync_token is not None and sync_idx is not None:
+            while len(state_stack) > 1:
+                top = state_stack[-1]
+                if top in self.action and sync_token in self.action[top]:
+                    if self.action[top][sync_token].startswith("s"):
+                        return True, sync_idx, (
+                            f"phrase-level recovery: resume at '{sync_token}' "
+                            f"(statement/block boundary)"
+                        )
+                if sym_stack and sym_stack[-1] in self.PHRASE_NON_TERMINALS:
+                    return True, sync_idx, (
+                        f"phrase-level recovery: resume at '{sync_token}' "
+                        f"after {sym_stack[-1]}"
+                    )
+                state_stack.pop()
+                if sym_stack:
+                    sym_stack.pop()
+
+        if self._error_recovery(state_stack, sym_stack, input_tokens[ip] if ip < len(input_tokens) else "$"):
+            return True, ip, "panic-mode: pop stack until shift possible"
+
+        return False, ip + 1, "panic-mode: skip token"
 
     def parse(self, tokens: list[Token]) -> dict:
         input_tokens = self._convert_tokens(tokens)
@@ -691,20 +733,28 @@ class LRParser:
             if state not in self.action or a not in self.action.get(state, {}):
                 line, col = self._token_position(tokens, ip)
                 err_msg = f"LR: No action for state {state} with {a}"
+                recovered, new_ip, recovery_action = self._phrase_error_recovery(
+                    state_stack, sym_stack, input_tokens, ip
+                )
                 if not panic_mode:
                     self.errors.report(
                         ErrorType.SYNTAX,
                         err_msg,
                         line,
                         col,
-                        recovery_action="error entry: pop stack until shift possible",
+                        recovery_action=recovery_action,
                     )
                     panic_mode = True
                 has_error = True
-                step["action"] = f"ERROR - {err_msg} (recovery)"
+                step["action"] = f"ERROR - {err_msg}"
                 trace.append(step)
-                if not self._error_recovery(state_stack, sym_stack, a):
-                    ip += 1
+                trace.append({
+                    "state_stack": state_str,
+                    "sym_stack": sym_str,
+                    "input": input_str,
+                    "action": recovery_action.upper(),
+                })
+                ip = new_ip
                 panic_mode = False
                 if a == "$" and ip >= len(input_tokens):
                     break

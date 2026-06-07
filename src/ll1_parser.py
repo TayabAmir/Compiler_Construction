@@ -4,6 +4,20 @@ from .token import Token, TokenType
 from .error_handler import ErrorHandler, ErrorType
 
 
+PHRASE_SYNC = {
+    "Statement": {
+        "SYM_SEMICOL", "SYM_RBRACE", "KW_ELSE", "KW_IF", "KW_WHILE",
+        "KW_RETURN", "KW_READ", "KW_PRINT", "id",
+    },
+    "StatementList": {"SYM_RBRACE", "$"},
+    "Block": {"SYM_RBRACE", "$"},
+    "VarDecl": {"SYM_SEMICOL", "id", "KW_CLASS", "KW_FINAL", "KW_VOID", "$"},
+    "MethodDecl": {"KW_VOID", "id", "SYM_RBRACE", "$"},
+    "Expr": {"SYM_RPAREN", "SYM_SEMICOL", "SYM_COMMA", "SYM_RBRACE", "OP_EQ", "OP_NEQ", "OP_GT", "OP_GE", "OP_LT", "OP_LE", "$"},
+    "Condition": {"SYM_RPAREN", "$"},
+}
+
+
 class LL1Parser:
     def __init__(self, errors: ErrorHandler):
         self.errors = errors
@@ -221,6 +235,12 @@ class LL1Parser:
             ip += 1
         return ip
 
+    def _phrase_sync_set(self, nt: str) -> set[str]:
+        return PHRASE_SYNC.get(nt, set()) | self.follow.get(nt, set()) | {"$"}
+
+    def _is_phrase_non_terminal(self, nt: str) -> bool:
+        return nt in PHRASE_SYNC
+
     def parse(self, tokens: list[Token]) -> dict:
         input_tokens = self._convert_tokens(tokens)
         stack = ["$", self.start_symbol]
@@ -228,6 +248,7 @@ class LL1Parser:
         trace = []
         success = True
         panic_mode = False
+        recovering_nt: str | None = None
 
         while stack:
             stack_str = "[" + " ".join(reversed([x for x in stack if x != "$"][::-1] if len([x for x in stack if x != "$"]) > 0 else []))
@@ -255,7 +276,17 @@ class LL1Parser:
                 ip += 1
             elif self._is_terminal(X):
                 line, col = self._token_position(tokens, ip)
-                step["action"] = f"ERROR: Expected {X}, found {a}"
+                use_phrase = X in ("SYM_SEMICOL", "SYM_RPAREN")
+                recovery_action = (
+                    "phrase-level recovery: skip to end of Statement"
+                    if use_phrase
+                    else "panic-mode: sync on FOLLOW sets"
+                )
+                step["action"] = (
+                    f"PHRASE-RECOVERY: expected {X}, found {a}"
+                    if use_phrase
+                    else f"ERROR: Expected {X}, found {a}"
+                )
                 trace.append(step)
                 if not panic_mode:
                     self.errors.report(
@@ -263,12 +294,27 @@ class LL1Parser:
                         f"LL(1): Expected {X}, found {a}",
                         line,
                         col,
-                        recovery_action="panic-mode sync on FOLLOW sets",
+                        recovery_action=recovery_action,
                     )
                     panic_mode = True
                 success = False
-                sync_set = self.follow.get(X, set()) | {X, "$"}
+                sync_set = (
+                    self._phrase_sync_set("Statement")
+                    if use_phrase
+                    else (self.follow.get(X, set()) | {X, "$"})
+                )
+                old_ip = ip
                 ip = self._sync_input(input_tokens, ip, sync_set)
+                if ip > old_ip:
+                    trace.append({
+                        "stack": stack_str,
+                        "input": " ".join(input_tokens[ip:]) if ip < len(input_tokens) else "$",
+                        "action": (
+                            f"PHRASE-RECOVERY: skipped {ip - old_ip} token(s) to statement boundary"
+                            if use_phrase
+                            else f"PANIC-RECOVERY: skipped {ip - old_ip} token(s)"
+                        ),
+                    })
                 panic_mode = False
             elif self._is_non_terminal(X):
                 key = (X, a)
@@ -276,25 +322,48 @@ class LL1Parser:
                     production = self.parse_table[key]
                     step["action"] = f"{X} -> {self._vec_to_str(production)}"
                     trace.append(step)
+                    recovering_nt = None
                     if not (production == ["epsilon"]):
                         for sym in reversed(production):
                             stack.append(sym)
                 else:
                     line, col = self._token_position(tokens, ip)
-                    step["action"] = f"ERROR: No production for M[{X}, {a}]"
+                    use_phrase = self._is_phrase_non_terminal(X)
+                    recovery_action = (
+                        f"phrase-level recovery: skip to end of {X}"
+                        if use_phrase
+                        else "panic-mode: sync on FOLLOW sets"
+                    )
+                    step["action"] = (
+                        f"PHRASE-RECOVERY: no production for {X} with {a}"
+                        if use_phrase
+                        else f"ERROR: No production for M[{X}, {a}]"
+                    )
                     trace.append(step)
-                    if not panic_mode:
+                    if not panic_mode or recovering_nt != X:
                         self.errors.report(
                             ErrorType.SYNTAX,
                             f"LL(1): No production for {X} with {a}",
                             line,
                             col,
-                            recovery_action="panic-mode sync on FOLLOW sets",
+                            recovery_action=recovery_action,
                         )
                         panic_mode = True
+                        recovering_nt = X
                     success = False
-                    sync_set = self.follow.get(X, set()) | {"$"}
+                    sync_set = self._phrase_sync_set(X) if use_phrase else (self.follow.get(X, set()) | {"$"})
+                    old_ip = ip
                     ip = self._sync_input(input_tokens, ip, sync_set)
+                    if ip > old_ip:
+                        trace.append({
+                            "stack": stack_str,
+                            "input": " ".join(input_tokens[ip:]) if ip < len(input_tokens) else "$",
+                            "action": (
+                                f"PHRASE-RECOVERY: skipped {ip - old_ip} token(s) to boundary of {X}"
+                                if use_phrase
+                                else f"PANIC-RECOVERY: skipped {ip - old_ip} token(s)"
+                            ),
+                        })
                     panic_mode = False
             else:
                 step["action"] = f"ERROR: Unexpected symbol {X}"

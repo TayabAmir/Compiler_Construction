@@ -375,7 +375,10 @@ def print_summary(errors: ErrorHandler):
     if s["total"] > 0:
         print(f"  Errors: {s['total']} (Lexical: {s['lexical']}, Syntax: {s['syntax']}, Semantic: {s['semantic']})")
         for e in errors.get_errors():
-            print(f"    [{e.type.value}] Line {e.line}, Col {e.col}: {e.message}")
+            msg = f"    [{e.type.value}] Line {e.line}, Col {e.col}: {e.message}"
+            if e.recovery_action:
+                msg += f" | Recovery: {e.recovery_action}"
+            print(msg)
     else:
         print("  No errors.")
 

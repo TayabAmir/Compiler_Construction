@@ -13,6 +13,23 @@ from .error_handler import ErrorHandler, ErrorType
 from .ast import ASTNode, ASTNodeType, make_node
 
 
+PHRASE_SYNC = {
+    "statement": {
+        TokenType.SYM_SEMICOL, TokenType.SYM_RBRACE, TokenType.KW_ELSE, TokenType.EOF,
+    },
+    "block": {TokenType.SYM_RBRACE, TokenType.EOF},
+    "declaration": {TokenType.SYM_SEMICOL, TokenType.EOF},
+    "method": {
+        TokenType.SYM_LBRACE, TokenType.KW_VOID, TokenType.IDENTIFIER,
+        TokenType.SYM_RBRACE, TokenType.EOF,
+    },
+    "expression": {
+        TokenType.SYM_RPAREN, TokenType.SYM_SEMICOL, TokenType.SYM_COMMA,
+        TokenType.SYM_RBRACE, TokenType.EOF,
+    },
+}
+
+
 class RecursiveParser:
     def __init__(self, lexer: Lexer, sym_table: ScopeManager, errors: ErrorHandler):
         self.lexer = lexer
@@ -26,19 +43,39 @@ class RecursiveParser:
     def next_token(self):
         self.lookahead = self.lexer.get_next_token()
 
-    def match(self, expected: TokenType, expected_name: str):
+    def _recover_phrase(self, phrase: str, *, consume_semicolon: bool = False):
+        sync = PHRASE_SYNC.get(phrase, PHRASE_SYNC["statement"])
+        while self.lookahead.type not in sync:
+            self.next_token()
+        if consume_semicolon and self.lookahead.type == TokenType.SYM_SEMICOL:
+            self.next_token()
+
+    def _panic_sync(self):
+        sync_set = {TokenType.EOF, TokenType.SYM_SEMICOL, TokenType.SYM_RBRACE, TokenType.KW_PROGRAM}
+        while self.lookahead.type not in sync_set:
+            self.next_token()
+
+    def match(self, expected: TokenType, expected_name: str, phrase: str | None = None):
         if self.lookahead.type == expected:
             self.next_token()
         else:
             self.has_error = True
+            recovery = (
+                f"phrase-level recovery: skip to end of {phrase}"
+                if phrase
+                else "panic-mode: sync on ;, }, program, EOF"
+            )
             self.errors.report(
                 ErrorType.SYNTAX,
                 f"Expected {expected_name} but found '{self.lookahead.type_to_string()}'",
-                self.lookahead.line, self.lookahead.col,
+                self.lookahead.line,
+                self.lookahead.col,
+                recovery_action=recovery,
             )
-            sync_set = {TokenType.EOF, TokenType.SYM_SEMICOL, TokenType.SYM_RBRACE, TokenType.KW_PROGRAM}
-            while self.lookahead.type not in sync_set:
-                self.next_token()
+            if phrase:
+                self._recover_phrase(phrase, consume_semicolon=(phrase == "statement"))
+            else:
+                self._panic_sync()
 
     def parse(self) -> tuple[bool, ASTNode | None]:
         self.has_error = False
@@ -134,7 +171,7 @@ class RecursiveParser:
             self.match(TokenType.CHAR_CONST, "char constant")
         else:
             self.errors.report(ErrorType.SYNTAX, "Expected number or char constant", self.lookahead.line, self.lookahead.col)
-        self.match(TokenType.SYM_SEMICOL, "';'")
+        self.match(TokenType.SYM_SEMICOL, "';'", phrase="declaration")
         return make_node(ASTNodeType.CONST_DECL, name=name, value=value, data_type=dtype, line=line, col=col)
 
     def _var_decl(self) -> ASTNode | None:
@@ -170,7 +207,7 @@ class RecursiveParser:
                     )
                 names.append(name)
                 self.match(TokenType.IDENTIFIER, "identifier (variable name)")
-        self.match(TokenType.SYM_SEMICOL, "';'")
+        self.match(TokenType.SYM_SEMICOL, "';'", phrase="declaration")
         return make_node(ASTNodeType.VAR_DECL, names=names, data_type=dtype, line=line, col=col)
 
     def _class_decl(self) -> ASTNode | None:
@@ -188,7 +225,7 @@ class RecursiveParser:
             child = self._var_decl()
             if child:
                 node.add_child(child)
-        self.match(TokenType.SYM_RBRACE, "'}'")
+        self.match(TokenType.SYM_RBRACE, "'}'", phrase="block")
         self.sym_table.end_scope()
         return node
 
@@ -296,7 +333,7 @@ class RecursiveParser:
             child = self._statement()
             if child:
                 node.add_child(child)
-        self.match(TokenType.SYM_RBRACE, "'}'")
+        self.match(TokenType.SYM_RBRACE, "'}'", phrase="block")
         return node
 
     def _statement(self) -> ASTNode | None:
@@ -305,19 +342,24 @@ class RecursiveParser:
             if self.lookahead.type == TokenType.SYM_ASSIGN:
                 self.match(TokenType.SYM_ASSIGN, "'='")
                 expr = self._expr()
-                self.match(TokenType.SYM_SEMICOL, "';'")
+                self.match(TokenType.SYM_SEMICOL, "';'", phrase="statement")
                 return make_node(ASTNodeType.ASSIGN_STMT, line=desig.line if desig else 0, col=desig.col if desig else 0,
                                  children=[desig, expr] if desig and expr else [n for n in (desig, expr) if n])
             elif self.lookahead.type == TokenType.SYM_LPAREN:
                 self._act_pars()
-                self.match(TokenType.SYM_SEMICOL, "';'")
+                self.match(TokenType.SYM_SEMICOL, "';'", phrase="statement")
                 return make_node(ASTNodeType.CALL_STMT, children=[desig] if desig else [])
             else:
-                self.errors.report(ErrorType.SYNTAX, "Expected '=' or '(' after designator",
-                                   self.lookahead.line, self.lookahead.col)
                 self.has_error = True
-                self.match(TokenType.SYM_SEMICOL, "';'")
-                return None
+                self.errors.report(
+                    ErrorType.SYNTAX,
+                    "Expected '=' or '(' after designator",
+                    self.lookahead.line,
+                    self.lookahead.col,
+                    recovery_action="phrase-level recovery: skip to end of statement",
+                )
+                self._recover_phrase("statement", consume_semicolon=True)
+                return make_node(ASTNodeType.EMPTY_STMT)
         elif self.lookahead.type == TokenType.KW_IF:
             line = self.lookahead.line
             col = self.lookahead.col
@@ -383,10 +425,15 @@ class RecursiveParser:
             return make_node(ASTNodeType.EMPTY_STMT)
         else:
             self.has_error = True
-            self.errors.report(ErrorType.SYNTAX, f"Unexpected token in statement: {self.lookahead.lexeme}",
-                               self.lookahead.line, self.lookahead.col)
-            self.next_token()
-            return None
+            self.errors.report(
+                ErrorType.SYNTAX,
+                f"Unexpected token in statement: '{self.lookahead.lexeme}'",
+                self.lookahead.line,
+                self.lookahead.col,
+                recovery_action="phrase-level recovery: skip to end of statement",
+            )
+            self._recover_phrase("statement", consume_semicolon=True)
+            return make_node(ASTNodeType.EMPTY_STMT)
 
     def _designator(self) -> ASTNode | None:
         line = self.lookahead.line
