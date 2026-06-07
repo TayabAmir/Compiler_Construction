@@ -1,0 +1,28 @@
+
+====================================================================
+  SYMBOL TABLE MANAGER OUTPUT
+====================================================================
+--------------------------------------------------------------------
+  Symbol Table (All Scopes):
+
+    Scope 0 (6 entries):
+    #    Name                 Kind         Type         Line  
+    ------------------------------------------------------
+    1    MyProgram            class        user-defined 1     
+    2    x                    variable     int          3     
+    3    y                    variable     int          4     
+    4    Point                class        user-defined 6     
+    5    MAX                  constant     int          2     
+    6    main                 function     void         11    
+
+    Scope 1 (2 entries):
+    #    Name                 Kind         Type         Line  
+    ------------------------------------------------------
+    1    px                   variable     int          7     
+    2    py                   variable     int          8     
+
+    Scope 1 (1 entries):
+    #    Name                 Kind         Type         Line  
+    ------------------------------------------------------
+    1    result               variable     int          12    
+  No errors.

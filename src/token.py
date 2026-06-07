@@ -85,57 +85,6 @@ TOKEN_NAMES = {
     TokenType.UNKNOWN: "Unknown",
 }
 
-
-def grammar_symbol_to_display(symbol: str) -> str:
-    mapping = {
-        "KW_PROGRAM": "program",
-        "KW_CLASS": "class",
-        "KW_IF": "if",
-        "KW_ELSE": "else",
-        "KW_WHILE": "while",
-        "KW_READ": "read",
-        "KW_PRINT": "print",
-        "KW_RETURN": "return",
-        "KW_VOID": "void",
-        "KW_FINAL": "final",
-        "KW_NEW": "new",
-        "OP_EQ": "==",
-        "OP_NEQ": "!=",
-        "OP_GE": ">=",
-        "OP_LE": "<=",
-        "OP_GT": ">",
-        "OP_LT": "<",
-        "OP_PLUS": "+",
-        "OP_MINUS": "-",
-        "OP_MULT": "*",
-        "OP_DIV": "/",
-        "OP_MOD": "%",
-        "SYM_LPAREN": "(",
-        "SYM_RPAREN": ")",
-        "SYM_LBRACK": "[",
-        "SYM_RBRACK": "]",
-        "SYM_LBRACE": "{",
-        "SYM_RBRACE": "}",
-        "SYM_ASSIGN": "=",
-        "SYM_SEMICOL": ";",
-        "SYM_COMMA": ",",
-        "SYM_DOT": ".",
-    }
-    return mapping.get(symbol, symbol)
-
-
-def grammar_symbols_to_display(symbols: list[str]) -> str:
-    if not symbols:
-        return "[]"
-    if symbols == ["epsilon"]:
-        return "[eps]"
-    parts = ["eps" if symbol == "epsilon" else grammar_symbol_to_display(symbol) for symbol in symbols]
-    return "[" + " ".join(parts) + "]"
-
-
-def grammar_symbol_set_to_display(symbols: set[str]) -> str:
-    return "{ " + ", ".join(sorted(grammar_symbol_to_display(symbol) for symbol in symbols)) + " }"
-
 class Token:
     def __init__(self, type_: TokenType, lexeme: str = "", line: int = 0, col: int = 0):
         self.type = type_

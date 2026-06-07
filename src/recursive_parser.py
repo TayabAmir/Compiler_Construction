@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from .token import Token, TokenType
 from .lexer import Lexer
-from .symbol_table import ScopeManager, IdentifierKind, DataType
+from .symbol_table import (
+    ScopeManager,
+    IdentifierKind,
+    DataType,
+    type_string_to_data_type,
+    kind_for_declaration,
+)
 from .error_handler import ErrorHandler, ErrorType
 from .ast import ASTNode, ASTNodeType, make_node
 
@@ -14,6 +20,8 @@ class RecursiveParser:
         self.errors = errors
         self.lookahead: Token | None = None
         self.has_error = False
+        self.main_found = False
+        self.main_param_count = 0
 
     def next_token(self):
         self.lookahead = self.lexer.get_next_token()
@@ -34,8 +42,26 @@ class RecursiveParser:
 
     def parse(self) -> tuple[bool, ASTNode | None]:
         self.has_error = False
+        self.main_found = False
+        self.main_param_count = 0
         self.next_token()
         ast = self._program()
+        if not self.main_found:
+            self.errors.report(
+                ErrorType.SEMANTIC,
+                "Program must contain a void main() method with no parameters",
+                1,
+                1,
+            )
+            self.has_error = True
+        elif self.main_param_count > 0:
+            self.errors.report(
+                ErrorType.SEMANTIC,
+                "main() must not have parameters",
+                1,
+                1,
+            )
+            self.has_error = True
         if self.lookahead.type != TokenType.EOF:
             self.errors.report(ErrorType.SYNTAX, "Unexpected tokens after end of program",
                                self.lookahead.line, self.lookahead.col)
@@ -91,7 +117,12 @@ class RecursiveParser:
             if self.sym_table.lookup_current(name) is not None:
                 self.errors.report(ErrorType.SEMANTIC, f"Duplicate constant '{name}'", self.lookahead.line, self.lookahead.col)
             else:
-                self.sym_table.insert(name, IdentifierKind.CONSTANT, DataType.INT, self.lookahead.line)
+                self.sym_table.insert(
+                    name,
+                    kind_for_declaration(dtype, is_constant=True),
+                    type_string_to_data_type(dtype),
+                    self.lookahead.line,
+                )
             self.match(TokenType.IDENTIFIER, "identifier (constant name)")
         self.match(TokenType.SYM_ASSIGN, "'='")
         value = None
@@ -116,7 +147,12 @@ class RecursiveParser:
             if self.sym_table.lookup_current(name) is not None:
                 self.errors.report(ErrorType.SEMANTIC, f"Duplicate variable '{name}'", self.lookahead.line, self.lookahead.col)
             else:
-                self.sym_table.insert(name, IdentifierKind.VARIABLE, DataType.INT, self.lookahead.line)
+                self.sym_table.insert(
+                    name,
+                    kind_for_declaration(dtype),
+                    type_string_to_data_type(dtype),
+                    self.lookahead.line,
+                )
             names.append(name)
             self.match(TokenType.IDENTIFIER, "identifier (variable name)")
         while self.lookahead.type == TokenType.SYM_COMMA:
@@ -126,7 +162,12 @@ class RecursiveParser:
                 if self.sym_table.lookup_current(name) is not None:
                     self.errors.report(ErrorType.SEMANTIC, f"Duplicate variable '{name}'", self.lookahead.line, self.lookahead.col)
                 else:
-                    self.sym_table.insert(name, IdentifierKind.VARIABLE, DataType.INT, self.lookahead.line)
+                    self.sym_table.insert(
+                        name,
+                        kind_for_declaration(dtype),
+                        type_string_to_data_type(dtype),
+                        self.lookahead.line,
+                    )
                 names.append(name)
                 self.match(TokenType.IDENTIFIER, "identifier (variable name)")
         self.match(TokenType.SYM_SEMICOL, "';'")
@@ -142,11 +183,13 @@ class RecursiveParser:
             self.match(TokenType.IDENTIFIER, "identifier (class name)")
         node = make_node(ASTNodeType.CLASS_DECL, name=name, line=line, col=col)
         self.match(TokenType.SYM_LBRACE, "'{'")
+        self.sym_table.begin_scope()
         while self.lookahead.type == TokenType.IDENTIFIER:
             child = self._var_decl()
             if child:
                 node.add_child(child)
         self.match(TokenType.SYM_RBRACE, "'}'")
+        self.sym_table.end_scope()
         return node
 
     def _method_decl(self) -> ASTNode | None:
@@ -165,29 +208,58 @@ class RecursiveParser:
             if self.sym_table.lookup_current(name) is not None:
                 self.errors.report(ErrorType.SEMANTIC, f"Duplicate method '{name}'", self.lookahead.line, self.lookahead.col)
             else:
-                self.sym_table.insert(name, IdentifierKind.FUNCTION, DataType.INT, self.lookahead.line)
+                self.sym_table.insert(
+                    name,
+                    IdentifierKind.FUNCTION,
+                    type_string_to_data_type(return_type),
+                    self.lookahead.line,
+                )
             self.match(TokenType.IDENTIFIER, "identifier (method name)")
 
         node = make_node(ASTNodeType.METHOD_DECL, name=name, return_type=return_type, line=line, col=col)
 
         self.match(TokenType.SYM_LPAREN, "'('")
         self.sym_table.begin_scope()
+        param_count = 0
 
         if self.lookahead.type == TokenType.IDENTIFIER:
             ptype = self._type()
             pname = self.lookahead.lexeme
             if self.lookahead.type == TokenType.IDENTIFIER:
-                self.sym_table.insert(pname, IdentifierKind.PARAMETER, DataType.INT, self.lookahead.line)
+                self.sym_table.insert(
+                    pname,
+                    IdentifierKind.PARAMETER,
+                    type_string_to_data_type(ptype),
+                    self.lookahead.line,
+                )
                 node.add_child(make_node(ASTNodeType.PARAMETER, name=pname, data_type=ptype, line=self.lookahead.line, col=self.lookahead.col))
                 self.match(TokenType.IDENTIFIER, "identifier (parameter name)")
+                param_count += 1
             while self.lookahead.type == TokenType.SYM_COMMA:
                 self.match(TokenType.SYM_COMMA, "','")
                 ptype = self._type()
                 pname = self.lookahead.lexeme
                 if self.lookahead.type == TokenType.IDENTIFIER:
-                    self.sym_table.insert(pname, IdentifierKind.PARAMETER, DataType.INT, self.lookahead.line)
+                    self.sym_table.insert(
+                        pname,
+                        IdentifierKind.PARAMETER,
+                        type_string_to_data_type(ptype),
+                        self.lookahead.line,
+                    )
                     node.add_child(make_node(ASTNodeType.PARAMETER, name=pname, data_type=ptype, line=self.lookahead.line, col=self.lookahead.col))
                     self.match(TokenType.IDENTIFIER, "identifier (parameter name)")
+                    param_count += 1
+
+        if name == "main":
+            self.main_found = True
+            self.main_param_count = param_count
+            if return_type != "void":
+                self.errors.report(
+                    ErrorType.SEMANTIC,
+                    "main() must be declared as void",
+                    line,
+                    col,
+                )
 
         self.match(TokenType.SYM_RPAREN, "')'")
 

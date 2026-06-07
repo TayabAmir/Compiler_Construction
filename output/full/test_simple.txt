@@ -1,0 +1,33 @@
+
+====================================================================
+  FULL COMPILATION PIPELINE
+====================================================================
+  Running ALL modules on the same source...
+
+
+  >>> [1/4] LEXICAL ANALYZER <<<
+
+  Tokens: 25  Errors: 0
+
+  >>> [2/4] RECURSIVE DESCENT + SYMBOL TABLE <<<
+
+  Parsing: PASS
+  Symbols: 3
+  Scopes:  1
+
+  >>> [3/4] LL(1) PREDICTIVE PARSER <<<
+
+  Parsing: PASS
+
+  >>> [4/4] LR PARSER (SLR(1)) <<<
+
+  Parsing: PASS
+
+--------------------------------------------------------------------
+  COMPILATION SUMMARY
+--------------------------------------------------------------------
+  Total errors: 0
+    Lexical:  0
+    Syntax:   0
+    Semantic: 0
+--------------------------------------------------------------------

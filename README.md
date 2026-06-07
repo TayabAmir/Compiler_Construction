@@ -30,7 +30,8 @@ Two interfaces are provided:
 python_compiler/
 ├── main.py                 # CLI entry point
 ├── app.py                  # Flask web server
-├── run.bat                 # Single-command launcher
+├── Makefile                # Build and run (cross-platform)
+├── run.bat                 # Single-command launcher (Windows)
 ├── requirements.txt        # Python dependencies
 ├── README.md               # This file
 │
@@ -179,7 +180,7 @@ The web interface provides:
 ## Compiler Modules
 
 ### 1. Lexical Analyzer (`src/lexer.py`)
-- Reads source character by character using single-pass tokenization
+- Reads source character by character using **double buffering** (Lab 2)
 - Produces tokens with (type, lexeme, line, col) attributes
 - Recognizes: identifiers, keywords (`program`, `class`, `if`, `else`, `while`, `read`, `print`, `return`, `void`, `final`, `new`), numbers, character constants, operators (`+`, `-`, `*`, `/`, `%`, `==`, `!=`, `>`, `<`, `>=`, `<=`, `=`), punctuation (`(`, `)`, `{`, `}`, `[`, `]`, `;`, `,`, `.`)
 - Skips whitespace and `//`-style comments
@@ -260,8 +261,9 @@ submission/
 
 Everything runs from either:
 ```bash
-run.bat <module> <file>      # Windows
-python main.py <module> <file> # Cross-platform
+make test FILE=test_simple.mj   # Cross-platform (Makefile)
+run.bat <module> <file>         # Windows
+python main.py <module> <file>  # Cross-platform
 ```
 
 ---
@@ -275,6 +277,7 @@ python main.py <module> <file> # Cross-platform
 | `test2_errors.mj` | Valid program with variables, if/while, read/print |
 | `test3_complex.mj` | Complex valid program with constants, classes, methods, parameters, nested blocks, arrays |
 | `test_lr.mj` | Simple program with arithmetic expression (`a + 10`) |
+| `test_microjava_sample.mj` | Official MicroJava sample from the language specification |
 
 ---
 

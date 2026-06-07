@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .token import Token, TokenType, grammar_symbol_set_to_display, grammar_symbol_to_display, grammar_symbols_to_display
+from .token import Token, TokenType
 from .error_handler import ErrorHandler, ErrorType
 
 
@@ -23,11 +23,18 @@ class LL1Parser:
 
     @staticmethod
     def _vec_to_str(v: list[str]) -> str:
-        return grammar_symbols_to_display(v)
+        if not v:
+            return "[]"
+        if v == ["epsilon"]:
+            return "[eps]"
+        parts = []
+        for s in v:
+            parts.append("eps" if s == "epsilon" else s)
+        return "[" + " ".join(parts) + "]"
 
     @staticmethod
     def _set_to_str(s: set[str]) -> str:
-        return grammar_symbol_set_to_display(s)
+        return "{ " + ", ".join(sorted(s)) + " }"
 
     def initialize_microjava_grammar(self):
         self.grammar = {
@@ -203,9 +210,16 @@ class LL1Parser:
             result.append("$")
         return result
 
-    @staticmethod
-    def _display_sequence(symbols: list[str]) -> str:
-        return " ".join(grammar_symbol_to_display(symbol) for symbol in symbols)
+    def _token_position(self, tokens: list[Token], ip: int) -> tuple[int, int]:
+        idx = min(ip, max(0, len(tokens) - 1))
+        if tokens:
+            return tokens[idx].line, tokens[idx].col
+        return 0, 0
+
+    def _sync_input(self, input_tokens: list[str], ip: int, sync_set: set[str]) -> int:
+        while ip < len(input_tokens) and input_tokens[ip] not in sync_set:
+            ip += 1
+        return ip
 
     def parse(self, tokens: list[Token]) -> dict:
         input_tokens = self._convert_tokens(tokens)
@@ -213,6 +227,7 @@ class LL1Parser:
         ip = 0
         trace = []
         success = True
+        panic_mode = False
 
         while stack:
             stack_str = "[" + " ".join(reversed([x for x in stack if x != "$"][::-1] if len([x for x in stack if x != "$"]) > 0 else []))
@@ -220,9 +235,9 @@ class LL1Parser:
             stack_str = " ".join(actual_stack) if actual_stack else "$"
             # Rebuild properly
             temp = list(stack)
-            stack_str = self._display_sequence(temp)
+            stack_str = " ".join(temp)
 
-            input_str = self._display_sequence(input_tokens[ip:]) if ip < len(input_tokens) else "$"
+            input_str = " ".join(input_tokens[ip:]) if ip < len(input_tokens) else "$"
 
             X = stack.pop()
             a = input_tokens[ip] if ip < len(input_tokens) else "$"
@@ -235,20 +250,26 @@ class LL1Parser:
                 success = True
                 break
             elif X == a:
-                step["action"] = f"Match {grammar_symbol_to_display(X)}"
+                step["action"] = f"Match {X}"
                 trace.append(step)
                 ip += 1
             elif self._is_terminal(X):
-                step["action"] = f"ERROR: Expected {grammar_symbol_to_display(X)}, found {grammar_symbol_to_display(a)}"
+                line, col = self._token_position(tokens, ip)
+                step["action"] = f"ERROR: Expected {X}, found {a}"
                 trace.append(step)
-                self.errors.report(ErrorType.SYNTAX, f"LL(1): Expected {grammar_symbol_to_display(X)}, found {grammar_symbol_to_display(a)}", 0, 0)
+                if not panic_mode:
+                    self.errors.report(
+                        ErrorType.SYNTAX,
+                        f"LL(1): Expected {X}, found {a}",
+                        line,
+                        col,
+                        recovery_action="panic-mode sync on FOLLOW sets",
+                    )
+                    panic_mode = True
                 success = False
-                # Panic-mode recovery: skip input until we find expected terminal or EOF
-                while ip < len(input_tokens) and input_tokens[ip] != X and input_tokens[ip] != "$":
-                    ip += 1
-                # Consume the matched terminal if found
-                if ip < len(input_tokens) and input_tokens[ip] == X:
-                    ip += 1
+                sync_set = self.follow.get(X, set()) | {X, "$"}
+                ip = self._sync_input(input_tokens, ip, sync_set)
+                panic_mode = False
             elif self._is_non_terminal(X):
                 key = (X, a)
                 if key in self.parse_table:
@@ -259,12 +280,22 @@ class LL1Parser:
                         for sym in reversed(production):
                             stack.append(sym)
                 else:
-                    step["action"] = f"ERROR: No production for M[{X}, {grammar_symbol_to_display(a)}]"
+                    line, col = self._token_position(tokens, ip)
+                    step["action"] = f"ERROR: No production for M[{X}, {a}]"
                     trace.append(step)
-                    self.errors.report(ErrorType.SYNTAX, f"LL(1): No production for {X} with {grammar_symbol_to_display(a)}", 0, 0)
+                    if not panic_mode:
+                        self.errors.report(
+                            ErrorType.SYNTAX,
+                            f"LL(1): No production for {X} with {a}",
+                            line,
+                            col,
+                            recovery_action="panic-mode sync on FOLLOW sets",
+                        )
+                        panic_mode = True
                     success = False
-                    # Skip current input token to avoid getting stuck
-                    ip += 1
+                    sync_set = self.follow.get(X, set()) | {"$"}
+                    ip = self._sync_input(input_tokens, ip, sync_set)
+                    panic_mode = False
             else:
                 step["action"] = f"ERROR: Unexpected symbol {X}"
                 trace.append(step)
@@ -283,16 +314,15 @@ class LL1Parser:
 
     def get_parse_table_data(self) -> list[dict]:
         rows = []
-        used_terminals_raw = sorted({t for (_, t) in self.parse_table})
-        used_terminals = [grammar_symbol_to_display(t) for t in used_terminals_raw]
+        used_terminals = sorted({t for (_, t) in self.parse_table})
         for nt in sorted(self.non_terminals):
             row = {"non_terminal": nt}
-            for raw_t, display_t in zip(used_terminals_raw, used_terminals):
-                key = (nt, raw_t)
+            for t in used_terminals:
+                key = (nt, t)
                 if key in self.parse_table:
                     prod = self.parse_table[key]
-                    row[display_t] = f"{nt} -> {self._vec_to_str(prod)}"
+                    row[t] = f"{nt} -> {self._vec_to_str(prod)}"
                 else:
-                    row[display_t] = "--"
+                    row[t] = "--"
             rows.append(row)
         return {"terminals": used_terminals, "rows": rows}

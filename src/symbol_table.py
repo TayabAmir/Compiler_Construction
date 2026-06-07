@@ -40,6 +40,26 @@ TYPE_NAMES = {
 }
 
 
+def type_string_to_data_type(type_name: str | None) -> DataType:
+    if not type_name:
+        return DataType.INT
+    if type_name == "int" or type_name == "int[]":
+        return DataType.INT
+    if type_name == "char" or type_name == "char[]":
+        return DataType.CHAR
+    if type_name == "void":
+        return DataType.VOID
+    return DataType.USER_DEFINED
+
+
+def kind_for_declaration(type_name: str | None, is_constant: bool = False) -> IdentifierKind:
+    if is_constant:
+        return IdentifierKind.CONSTANT
+    if type_name and type_name.endswith("[]"):
+        return IdentifierKind.ARRAY
+    return IdentifierKind.VARIABLE
+
+
 TABLE_SIZE = 211
 
 
@@ -155,6 +175,14 @@ class ScopeManager:
         if self.current_scope is None:
             return None
         return self.current_scope.lookup_current(name)
+
+    def delete(self, name: str) -> bool:
+        if self.current_scope is None:
+            return False
+        if self.current_scope.delete_entry(name):
+            self.total_entries -= 1
+            return True
+        return False
 
     def get_current_scope_level(self) -> int:
         if self.current_scope is None:

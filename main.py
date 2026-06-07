@@ -73,7 +73,7 @@ def run_recursive_parser(source: str):
     parser = RecursiveParser(lexer, sym_table, errors)
 
     print_header("RECURSIVE DESCENT PARSER OUTPUT")
-    success = parser.parse()
+    success, _ = parser.parse()
     print(f"  Result: {'[PASS]' if success else '[FAIL]'}")
     print_separator()
     print_symbol_table(sym_table)
@@ -113,22 +113,10 @@ def run_lr_parser(source: str):
 
     print_header("LR PARSER (SLR(1)) OUTPUT")
     state_count = len(parser.states)
-    print(f"  Total LR(0) states built: {state_count}")
+    print(f"  LR(0) states: {state_count}")
     result = parser.parse(tokens)
-
     print()
-    box_w = 50
-    if result['success']:
-        print(f"  +-{'-' * box_w}-+")
-        print(f"  | {'[OK] PARSING SUCCESSFUL'.center(box_w)} |")
-        print(f"  | {'The parser correctly understood the program structure!'.center(box_w)} |")
-        print(f"  +-{'-' * box_w}-+")
-    else:
-        print(f"  +-{'-' * box_w}-+")
-        print(f"  | {'[FAIL] PARSING FAILED'.center(box_w)} |")
-        print(f"  | {'The parser found syntax errors in the program.'.center(box_w)} |")
-        print(f"  +-{'-' * box_w}-+")
-
+    print(f"  Result: {'[PASS]' if result['success'] else '[FAIL]'}")
     print_lr_trace(result)
     print_summary(errors)
     return result
@@ -242,14 +230,16 @@ def print_grammar_info():
 
 def print_first_sets(parser: LL1Parser):
     print_section("FIRST SETS")
-    for nt, fs in parser.get_first_sets().items():
-        print(f"    FIRST({nt}) = {fs}")
+    for nt in sorted(parser.non_terminals):
+        fs = parser.first.get(nt, set())
+        print(f"    FIRST({nt}) = {{ {', '.join(sorted(fs))} }}")
 
 
 def print_follow_sets(parser: LL1Parser):
     print_section("FOLLOW SETS")
-    for nt, fs in parser.get_follow_sets().items():
-        print(f"    FOLLOW({nt}) = {fs}")
+    for nt in sorted(parser.non_terminals):
+        fs = parser.follow.get(nt, set())
+        print(f"    FOLLOW({nt}) = {{ {', '.join(sorted(fs))} }}")
 
 
 def print_ll1_table(parser: LL1Parser):
@@ -276,27 +266,19 @@ def print_ll1_table(parser: LL1Parser):
 
 
 def print_lr_states(parser: LRParser):
-    print_section("LR(0) STATES (Parser's Internal Checklist)")
-    print("  Each state represents a possible situation the parser can be in.")
-    print("  The dot (·) shows how much of a rule has been seen so far.")
-    print()
+    print_section("LR(0) STATES")
     states = parser.get_states_info()
     for st in states:
-        print(f"  -- State {st['id']} --")
+        print(f"  State {st['id']}:")
         for item in st["items"]:
             print(f"    {item}")
         for sym, dest in st["transitions"].items():
-            print(f"    --{sym}--> State {dest}")
+            print(f"    --> {sym} -> State {dest}")
         print()
 
 
 def print_action_table(parser: LRParser):
     print_section("ACTION TABLE (SLR(1))")
-    print("  Tells the parser: when in state S, seeing token T, what to do.")
-    print("    sN = Shift (read token, go to state N)")
-    print("    rN = Reduce (apply grammar rule N)")
-    print("    acc = Accept (parsing done!)")
-    print()
     table = parser.get_action_table_data()
     if not table or not table.get("terminals"):
         print("    (empty)")
@@ -319,9 +301,6 @@ def print_action_table(parser: LRParser):
 
 def print_goto_table(parser: LRParser):
     print_section("GOTO TABLE (SLR(1))")
-    print("  After a Reduce, tells the parser which state to go to next.")
-    print("  Think of it as: 'I found a <NonTerminal>, now jump to state N'")
-    print()
     table = parser.get_goto_table_data()
     if not table or not table.get("non_terminals"):
         print("    (empty)")
@@ -363,46 +342,16 @@ def print_lr_trace(result: dict):
     if not trace:
         return
     print()
-    print_section("STEP-BY-STEP PARSING TRACE")
-    print("  Each step shows: the parser's state, what symbols it has")
-    print("  stacked, what input remains, and what action it takes.")
-    print()
-
-    # Column widths
-    c_step = 5
-    c_state = 28
-    c_sym = 22
-    c_input = 28
-    c_action = 38
-
-    sep = f"  {'-' * (c_step + c_state + c_sym + c_input + c_action + 8)}"
-    print(sep)
-    print(f"  {'Step':<{c_step}}  {'States Stack':<{c_state}}  {'Symbols Stack':<{c_sym}}  {'Remaining Input':<{c_input}}  {'Action Taken'}")
-    print(sep)
-
-    for i, step in enumerate(trace, 1):
+    print_separator()
+    print(f"  {'State Stack':<25} {'Sym Stack':<20} {'Input':<20} {'Action'}")
+    print_separator()
+    for step in trace:
         ss = step.get("state_stack", "")
         syms = step.get("sym_stack", "")
         inp = step.get("input", "")
         action = step.get("action", "")
-
-        # Shorten long inputs
-        if len(inp) > c_input - 3:
-            inp = inp[:c_input - 6] + "..."
-
-        print(f"  {i:<{c_step}}  {ss:<{c_state}}  {syms:<{c_sym}}  {inp:<{c_input}}  {action}")
-
-    print(sep)
-
-    # Legend for actions
-    print()
-    print("  What each action means:")
-    print("    Shift sN  ->  Read next token and move to state N")
-    print("    Reduce    ->  Found a complete pattern, replace it with a simpler name")
-    print("    Accept    ->  Parsing complete! The program is valid.")
-    print("    ERROR     ->  The parser doesn't know what to do - syntax error!")
-    print()
-    print(f"  Total steps: {len(trace)}")
+        print(f"  {ss:<25} {syms:<20} {inp:<20} {action}")
+    print_separator()
 
 
 def print_symbol_table(sym_table: ScopeManager):

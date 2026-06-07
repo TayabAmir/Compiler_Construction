@@ -10,14 +10,18 @@ class ErrorType(Enum):
 
 
 class CompilerError:
-    def __init__(self, type_: ErrorType, message: str, line: int, col: int):
+    def __init__(self, type_, message, line, col, recovery_action=""):
         self.type = type_
         self.message = message
         self.line = line
         self.col = col
+        self.recovery_action = recovery_action
 
-    def to_string(self) -> str:
-        return f"[{self.type.value}] Line {self.line}, Col {self.col}: {self.message}"
+    def to_string(self):
+        msg = f"[{self.type.value}] Line {self.line}, Col {self.col}: {self.message}"
+        if self.recovery_action:
+            msg += f" | Recovery: {self.recovery_action}"
+        return msg
 
     def to_dict(self):
         return {
@@ -25,45 +29,76 @@ class CompilerError:
             "message": self.message,
             "line": self.line,
             "col": self.col,
+            "recovery_action": self.recovery_action,
         }
 
 
 class ErrorHandler:
+
     def __init__(self):
-        self.errors: list[CompilerError] = []
+        self.errors = []
         self.panic_mode = False
 
-    def report(self, type_: ErrorType, message: str, line: int, col: int):
-        err = CompilerError(type_, message, line, col)
+    def report(
+            self,
+            type_,
+            message,
+            line,
+            col,
+            recovery_action=""
+    ):
+        err = CompilerError(
+            type_,
+            message,
+            line,
+            col,
+            recovery_action
+        )
         self.errors.append(err)
         return err
 
-    def set_panic_mode(self, mode: bool):
-        self.panic_mode = mode
+    def enter_panic_mode(self):
+        self.panic_mode = True
 
-    def is_panic_mode(self) -> bool:
+    def exit_panic_mode(self):
+        self.panic_mode = False
+
+    def is_panic_mode(self):
         return self.panic_mode
 
-    def has_errors(self) -> bool:
+    def has_errors(self):
         return len(self.errors) > 0
 
-    def error_count(self) -> int:
+    def error_count(self):
         return len(self.errors)
 
-    def get_errors(self) -> list[CompilerError]:
+    def get_errors(self):
         return self.errors
 
-    def get_summary(self) -> dict:
-        lexical = sum(1 for e in self.errors if e.type == ErrorType.LEXICAL)
-        syntax = sum(1 for e in self.errors if e.type == ErrorType.SYNTAX)
-        semantic = sum(1 for e in self.errors if e.type == ErrorType.SEMANTIC)
+    def clear(self):
+        self.errors.clear()
+        self.panic_mode = False
+
+    def get_summary(self):
+
+        lexical = sum(
+            1 for e in self.errors
+            if e.type == ErrorType.LEXICAL
+        )
+
+        syntax = sum(
+            1 for e in self.errors
+            if e.type == ErrorType.SYNTAX
+        )
+
+        semantic = sum(
+            1 for e in self.errors
+            if e.type == ErrorType.SEMANTIC
+        )
+
         return {
             "total": len(self.errors),
             "lexical": lexical,
             "syntax": syntax,
             "semantic": semantic,
         }
-
-    def clear(self):
-        self.errors.clear()
-        self.panic_mode = False

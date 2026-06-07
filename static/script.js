@@ -1,7 +1,4 @@
 let currentModule = "lexer";
-const OUTPUT_HEIGHT_KEY = "microjava.outputHeight";
-const OUTPUT_COLLAPSED_KEY = "microjava.outputCollapsed";
-const DEFAULT_OUTPUT_HEIGHT = 380;
 
 const moduleNames = {
     lexer: "Lexical Analyzer",
@@ -10,7 +7,6 @@ const moduleNames = {
     lr: "LR Parser (SLR(1))",
     symbol_table: "Symbol Table Manager",
     full: "Full Compilation Pipeline",
-    ast: "Abstract Syntax Tree",
     grammar: "Grammar &amp; Parsing Tables",
 };
 
@@ -28,91 +24,6 @@ document.querySelectorAll(".nav-item").forEach((item) => {
     });
 });
 
-document.addEventListener("DOMContentLoaded", initOutputPanelControls);
-
-function initOutputPanelControls() {
-    const panel = document.getElementById("output-panel");
-    const handle = document.getElementById("output-resize-handle");
-    const toggle = document.getElementById("output-toggle");
-
-    if (!panel || !handle || !toggle) {
-        return;
-    }
-
-    const savedHeight = parseInt(localStorage.getItem(OUTPUT_HEIGHT_KEY) || "", 10);
-    const savedCollapsed = localStorage.getItem(OUTPUT_COLLAPSED_KEY) === "true";
-
-    if (!Number.isNaN(savedHeight) && savedHeight > 0) {
-        panel.style.setProperty("--output-panel-height", `${savedHeight}px`);
-    } else {
-        panel.style.setProperty("--output-panel-height", `${DEFAULT_OUTPUT_HEIGHT}px`);
-    }
-
-    setOutputCollapsed(savedCollapsed);
-
-    toggle.addEventListener("click", () => {
-        setOutputCollapsed(!panel.classList.contains("collapsed"));
-    });
-
-    handle.addEventListener("mousedown", startOutputResize);
-}
-
-function setOutputCollapsed(collapsed) {
-    const panel = document.getElementById("output-panel");
-    const handle = document.getElementById("output-resize-handle");
-    const toggle = document.getElementById("output-toggle");
-
-    if (!panel || !handle || !toggle) {
-        return;
-    }
-
-    panel.classList.toggle("collapsed", collapsed);
-    handle.style.display = collapsed ? "none" : "block";
-    toggle.textContent = collapsed ? "▴" : "▾";
-    toggle.title = collapsed ? "Expand output" : "Collapse output";
-    localStorage.setItem(OUTPUT_COLLAPSED_KEY, String(collapsed));
-}
-
-function startOutputResize(event) {
-    if (event.button !== 0) {
-        return;
-    }
-
-    const panel = document.getElementById("output-panel");
-    if (!panel || panel.classList.contains("collapsed")) {
-        return;
-    }
-
-    const mainContent = document.querySelector(".main-content");
-    const startY = event.clientY;
-    const startHeight = panel.getBoundingClientRect().height;
-    const minHeight = 44;
-    const availableHeight = mainContent ? mainContent.clientHeight : window.innerHeight;
-    const maxHeight = Math.max(minHeight, availableHeight - 180);
-
-    document.body.classList.add("resizing-output");
-
-    function onMove(moveEvent) {
-        const nextHeight = startHeight + (startY - moveEvent.clientY);
-        const clampedHeight = Math.max(minHeight, Math.min(maxHeight, nextHeight));
-        panel.style.setProperty("--output-panel-height", `${clampedHeight}px`);
-    }
-
-    function onUp() {
-        document.body.classList.remove("resizing-output");
-        document.removeEventListener("mousemove", onMove);
-        document.removeEventListener("mouseup", onUp);
-
-        const heightValue = parseInt(getComputedStyle(panel).getPropertyValue("--output-panel-height"), 10);
-        if (!Number.isNaN(heightValue) && heightValue > 0) {
-            localStorage.setItem(OUTPUT_HEIGHT_KEY, String(heightValue));
-        }
-    }
-
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-}
-
 function getPlaceholder(module) {
     const msgs = {
         lexer: "Tokenize source code into a stream of tokens.",
@@ -121,7 +32,6 @@ function getPlaceholder(module) {
         lr: "Parse using SLR(1) shift-reduce parser.",
         symbol_table: "View symbol table with nested scopes.",
         full: "Execute the full compilation pipeline.",
-        ast: "View the Abstract Syntax Tree built by the recursive descent parser.",
         grammar: "View grammar, FIRST/FOLLOW sets, and parsing tables.",
     };
     return `<div class="placeholder"><div class="placeholder-icon">⚡</div><h3>Ready</h3><p>${msgs[module] || ""}</p></div>`;
@@ -175,7 +85,6 @@ function runModule() {
         lr: "/lr_parser",
         symbol_table: "/symbol_table",
         full: "/full_compilation",
-        ast: "/ast",
         grammar: "/grammar_info",
     };
 
@@ -235,9 +144,6 @@ function renderOutput(module, data) {
             break;
         case "full":
             renderFullOutput(body, data);
-            break;
-        case "ast":
-            renderASTOutput(body, data);
             break;
     }
 }
@@ -726,90 +632,6 @@ function renderErrorSummary(data) {
     }
     html += `</div>`;
     return html;
-}
-
-function renderASTOutput(body, data) {
-    let html = `<div class="summary-card"><h4>Abstract Syntax Tree</h4>`;
-    html += `<div class="module-result ${data.success ? "pass" : "fail"}">
-        ${data.success ? "✓" : "✗"} ${data.success ? "Parsing Successful!" : "Parsing Failed"}
-    </div>`;
-
-    if (data.ast) {
-        html += `<div class="ast-tree">`;
-        html += renderASTNode(data.ast, true);
-        html += `</div>`;
-        html += `<div style="font-size:11px;color:var(--text-muted);margin-top:8px;">
-            💡 Click on any node to collapse/expand its subtree
-        </div>`;
-    } else {
-        html += `<div class="info-msg">No AST generated (parsing failed).</div>`;
-    }
-
-    html += `</div>`;
-    html += renderErrorSummary(data);
-    body.innerHTML = html;
-}
-
-function renderASTNode(node, isRoot) {
-    if (!node) return "";
-    const type = node.type || "Unknown";
-    let label = type;
-    if (node.name !== undefined && node.name !== null) {
-        label += `: <span class="ast-value">${escHtml(String(node.name))}</span>`;
-    }
-    if (node.value !== undefined && node.value !== null) {
-        label += ` = <span class="ast-value">${escHtml(String(node.value))}</span>`;
-    }
-    if (node.op !== undefined && node.op !== null) {
-        label += ` [<span class="ast-op">${escHtml(node.op)}</span>]`;
-    }
-    if (node.data_type !== undefined && node.data_type !== null) {
-        label += ` : <span class="ast-type">${escHtml(node.data_type)}</span>`;
-    }
-    if (node.return_type !== undefined && node.return_type !== null) {
-        label += ` : <span class="ast-type">${escHtml(node.return_type)}</span>`;
-    }
-    if (node.width !== undefined && node.width !== null) {
-        label += ` width=<span class="ast-value">${escHtml(node.width)}</span>`;
-    }
-    if (node.names !== undefined && node.names !== null && Array.isArray(node.names)) {
-        label += ` names=[<span class="ast-value">${node.names.map(n => escHtml(String(n))).join(", ")}</span>]`;
-    }
-    if (node.line !== undefined && node.line !== null) {
-        label += ` <span class="ast-line">[L${node.line}]</span>`;
-    }
-
-    let html = `<div class="ast-node ${isRoot ? 'ast-root' : ''}">`;
-    html += `<div class="ast-node-label" onclick="toggleASTChildren(this)">`;
-    if (node.children && node.children.length > 0) {
-        html += `<span class="ast-toggle">▾</span>`;
-    } else {
-        html += `<span class="ast-toggle ast-toggle-leaf">·</span>`;
-    }
-    html += label;
-    html += `</div>`;
-
-    if (node.children && node.children.length > 0) {
-        html += `<div class="ast-children">`;
-        for (const child of node.children) {
-            html += renderASTNode(child, false);
-        }
-        html += `</div>`;
-    }
-
-    html += `</div>`;
-    return html;
-}
-
-function toggleASTChildren(el) {
-    const childrenDiv = el.nextElementSibling;
-    if (!childrenDiv || !childrenDiv.classList.contains("ast-children")) return;
-    const isHidden = childrenDiv.style.display === "none";
-    childrenDiv.style.display = isHidden ? "block" : "none";
-    const toggle = el.querySelector(".ast-toggle");
-    if (toggle) {
-        toggle.textContent = isHidden ? "▾" : "▸";
-    }
 }
 
 function escHtml(str) {

@@ -1,0 +1,35 @@
+
+====================================================================
+  LEXICAL ANALYZER OUTPUT
+====================================================================
+  Token count: 25
+--------------------------------------------------------------------
+  Line  Col  Type                       Lexeme
+--------------------------------------------------------------------
+     1    0  Keyword(program)           program
+     1    8  Identifier                 Simple
+     2    0  Identifier                 int
+     2    4  Identifier                 a
+     2    5  Operator(;)                ;
+     3    0  Operator({)                {
+     4    0  Keyword(void)              void
+     4    5  Identifier                 main
+     4    9  Operator(()                (
+     4   10  Operator())                )
+     5    0  Operator({)                {
+     6    4  Identifier                 a
+     6    6  Operator(=)                =
+     6    8  Number                     5
+     6    9  Operator(;)                ;
+     7    4  Keyword(print)             print
+     7    9  Operator(()                (
+     7   10  Identifier                 a
+     7   11  Operator())                )
+     7   12  Operator(;)                ;
+     8    4  Keyword(return)            return
+     8   10  Operator(;)                ;
+     9    0  Operator(})                }
+    10    0  Operator(})                }
+    11    0  EOF                        EOF
+--------------------------------------------------------------------
+  No errors.

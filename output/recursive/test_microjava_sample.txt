@@ -1,0 +1,29 @@
+
+====================================================================
+  RECURSIVE DESCENT PARSER OUTPUT
+====================================================================
+  Result: [PASS]
+--------------------------------------------------------------------
+  Symbol Table (All Scopes):
+
+    Scope 0 (5 entries):
+    #    Name                 Kind         Type         Line  
+    ------------------------------------------------------
+    1    val                  variable     user-defined 7     
+    2    Table                class        user-defined 3     
+    3    size                 constant     int          2     
+    4    main                 function     void         9     
+    5    P                    class        user-defined 1     
+
+    Scope 1 (2 entries):
+    #    Name                 Kind         Type         Line  
+    ------------------------------------------------------
+    1    pos                  array        int          4     
+    2    neg                  array        int          5     
+
+    Scope 1 (2 entries):
+    #    Name                 Kind         Type         Line  
+    ------------------------------------------------------
+    1    i                    variable     int          10    
+    2    x                    variable     int          10    
+  No errors.

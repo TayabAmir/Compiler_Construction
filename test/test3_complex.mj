@@ -1,6 +1,6 @@
 program ComplexExample
 final int SIZE = 100;
-int global_counter;
+int globalcounter;
 
 class Data {
     int value;
@@ -8,20 +8,20 @@ class Data {
 }
 {
 void compute(int n)
-    int local_sum;
+    int localsum;
     int i;
 {
-    local_sum = 0;
+    localsum = 0;
     i = 0;
     while (i < n) {
-        local_sum = local_sum + i;
+        localsum = localsum + i;
         i = i + 1;
     }
-    print(local_sum);
+    print(localsum);
     return;
 }
 
-int main()
+void main()
     int result;
     int temp;
 {
@@ -39,6 +39,6 @@ int main()
         result = result - 1;
         print(result);
     }
-    return 0;
+    return;
 }
 }

@@ -18,25 +18,56 @@ KEYWORDS = {
     "new": TokenType.KW_NEW,
 }
 
+BUFFER_HALF = 2048
+EOF_SENTINEL = "\0"
 
-class Lexer:
-    def __init__(self, source: str, errors: ErrorHandler):
+
+class DoubleBuffer:
+    """Classic double-buffering scheme (Dragon book / Lab 2)."""
+
+    def __init__(self, source: str):
         self.source = source
-        self.pos = 0
+        self.source_len = len(source)
+        self.buffer = [EOF_SENTINEL] * (2 * BUFFER_HALF + 2)
+        self.current = 0
+        self.read_pos = 0
         self.line = 1
         self.col = 0
-        self.errors = errors
+        self._load_buffer(0)
+        if self.read_pos < self.source_len:
+            self._load_buffer(BUFFER_HALF)
+
+    def _load_buffer(self, start: int):
+        i = start
+        end = start + BUFFER_HALF
+        while i < end and self.read_pos < self.source_len:
+            self.buffer[i] = self.source[self.read_pos]
+            i += 1
+            self.read_pos += 1
+        self.buffer[i] = EOF_SENTINEL
+
+    def _reload_if_needed(self):
+        if self.buffer[self.current] != EOF_SENTINEL:
+            return
+        if self.read_pos >= self.source_len:
+            return
+        if self.current < BUFFER_HALF:
+            self._load_buffer(BUFFER_HALF)
+            self.current = BUFFER_HALF
+        else:
+            self._load_buffer(0)
+            self.current = 0
 
     def peek(self) -> str:
-        if self.pos >= len(self.source):
-            return ""
-        return self.source[self.pos]
+        self._reload_if_needed()
+        return self.buffer[self.current]
 
     def advance(self) -> str:
-        if self.pos >= len(self.source):
+        self._reload_if_needed()
+        c = self.buffer[self.current]
+        if c == EOF_SENTINEL:
             return ""
-        c = self.source[self.pos]
-        self.pos += 1
+        self.current += 1
         if c == "\n":
             self.line += 1
             self.col = 0
@@ -44,40 +75,70 @@ class Lexer:
             self.col += 1
         return c
 
+    def at_end(self) -> bool:
+        self._reload_if_needed()
+        return self.buffer[self.current] == EOF_SENTINEL
+
+
+class Lexer:
+    def __init__(self, source: str, errors: ErrorHandler):
+        self.buffer = DoubleBuffer(source)
+        self.errors = errors
+
+    @property
+    def line(self) -> int:
+        return self.buffer.line
+
+    @property
+    def col(self) -> int:
+        return self.buffer.col
+
+    def peek(self) -> str:
+        return self.buffer.peek()
+
+    def advance(self) -> str:
+        return self.buffer.advance()
+
     def skip_whitespace_and_comments(self):
-        while self.pos < len(self.source):
+        while not self.buffer.at_end():
             c = self.peek()
-            # treat literal whitespace characters as whitespace
             if c in " \t\n\r":
                 self.advance()
                 continue
-            # treat backslash-escaped whitespace sequences (e.g. "\\r", "\\n", "\\t") as whitespace
-            if c == "\\" and self.pos + 1 < len(self.source) and self.source[self.pos + 1] in "rnt":
+            if c == "\\" and self.buffer.current + 1 < len(self.buffer.source) and self.buffer.source[self.buffer.current + 1] in "rnt":
                 self.advance()
                 self.advance()
                 continue
-            if c == "/" and self.pos + 1 < len(self.source) and self.source[self.pos + 1] == "/":
+            if c == "/" and self._next_char() == "/":
                 self.advance()
                 self.advance()
-                while self.pos < len(self.source) and self.peek() != "\n":
+                while not self.buffer.at_end() and self.peek() != "\n":
                     self.advance()
                 continue
             break
 
+    def _next_char(self) -> str:
+        saved = self.buffer.current
+        saved_line = self.buffer.line
+        saved_col = self.buffer.col
+        nxt = self.advance()
+        self.buffer.current = saved
+        self.buffer.line = saved_line
+        self.buffer.col = saved_col
+        return nxt
+
     def get_next_token(self) -> Token:
         self.skip_whitespace_and_comments()
 
-        if self.pos >= len(self.source):
+        if self.buffer.at_end():
             return Token(TokenType.EOF, "EOF", self.line, self.col)
 
         c = self.peek()
         start_line, start_col = self.line, self.col
 
-        # backslash-escaped whitespace sequences are handled by the skipper above
-
-        if c.isalpha() or c == "_":
+        if c.isalpha():
             lexeme = ""
-            while self.pos < len(self.source) and (self.peek().isalnum() or self.peek() == "_"):
+            while not self.buffer.at_end() and self.peek().isalnum():
                 lexeme += self.advance()
             if lexeme in KEYWORDS:
                 return Token(KEYWORDS[lexeme], lexeme, start_line, start_col)
@@ -85,23 +146,28 @@ class Lexer:
 
         if c.isdigit():
             lexeme = ""
-            while self.pos < len(self.source) and self.peek().isdigit():
+            while not self.buffer.at_end() and self.peek().isdigit():
                 lexeme += self.advance()
             return Token(TokenType.NUMBER, lexeme, start_line, start_col)
 
         if c == "'":
             lexeme = self.advance()
-            if self.pos < len(self.source):
+            if not self.buffer.at_end():
                 if self.peek() == "\\":
                     lexeme += self.advance()
-                    if self.pos < len(self.source):
+                    if not self.buffer.at_end():
                         lexeme += self.advance()
                 else:
                     lexeme += self.advance()
-            if self.pos < len(self.source) and self.peek() == "'":
+            if not self.buffer.at_end() and self.peek() == "'":
                 lexeme += self.advance()
             else:
-                self.errors.report(ErrorType.LEXICAL, "Unterminated character constant", start_line, start_col)
+                self.errors.report(
+                    ErrorType.LEXICAL,
+                    "Unterminated character constant",
+                    start_line,
+                    start_col,
+                )
             return Token(TokenType.CHAR_CONST, lexeme, start_line, start_col)
 
         if c == "=":

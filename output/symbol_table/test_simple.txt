@@ -1,0 +1,14 @@
+
+====================================================================
+  SYMBOL TABLE MANAGER OUTPUT
+====================================================================
+--------------------------------------------------------------------
+  Symbol Table (All Scopes):
+
+    Scope 0 (3 entries):
+    #    Name                 Kind         Type         Line  
+    ------------------------------------------------------
+    1    a                    variable     int          2     
+    2    Simple               class        user-defined 1     
+    3    main                 function     void         4     
+  No errors.

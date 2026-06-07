@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .token import Token, TokenType, grammar_symbol_set_to_display, grammar_symbol_to_display, grammar_symbols_to_display
+from .token import Token, TokenType
 from .error_handler import ErrorHandler, ErrorType
 
 
@@ -30,7 +30,7 @@ class LRItem:
         for i, s in enumerate(self.prod):
             if i == self.dot_pos:
                 parts.append("·")
-            parts.append(grammar_symbol_to_display(s))
+            parts.append(s)
         if self.dot_pos == len(self.prod):
             parts.append("·")
         return f"{self.lhs} -> {' '.join(parts)}"
@@ -69,64 +69,394 @@ class LRParser:
 
     @staticmethod
     def _set_to_str(s: set[str]) -> str:
-        return grammar_symbol_set_to_display(s)
+        return "{ " + ", ".join(sorted(s)) + " }"
 
     def initialize_microjava_grammar(self):
         self.grammar = {
             "S'": [["Program"]],
-            "Program": [["KW_PROGRAM", "id", "Declarations", "SYM_LBRACE", "MethodList", "SYM_RBRACE"]],
-            "Declarations": [["ConstDecl", "Declarations"], ["VarDecl", "Declarations"], ["ClassDecl", "Declarations"], ["epsilon"]],
-            "ConstDecl": [["KW_FINAL", "Type", "id", "SYM_ASSIGN", "ConstVal", "SYM_SEMICOL"]],
-            "ConstVal": [["NUMBER"], ["CHAR_CONST"]],
-            "VarDecl": [["Type", "id", "VarDeclTail"]],
-            "VarDeclTail": [["SYM_COMMA", "id", "VarDeclTail"], ["SYM_SEMICOL"]],
-            "ClassDecl": [["KW_CLASS", "id", "SYM_LBRACE", "VarDeclList", "SYM_RBRACE"]],
-            "VarDeclList": [["VarDecl", "VarDeclList"], ["epsilon"]],
-            "MethodList": [["MethodDecl", "MethodList"], ["epsilon"]],
-            "MethodDecl": [["MethodHeader", "id", "SYM_LPAREN", "FormPars", "SYM_RPAREN", "VarDeclList", "Block"]],
-            "MethodHeader": [["Type"], ["KW_VOID"]],
-            "FormPars": [["Type", "id", "FormParsTail"], ["epsilon"]],
-            "FormParsTail": [["SYM_COMMA", "Type", "id", "FormParsTail"], ["epsilon"]],
-            "Type": [["id", "ArrayOpt"]],
-            "ArrayOpt": [["SYM_LBRACK", "SYM_RBRACK"], ["epsilon"]],
-            "Block": [["SYM_LBRACE", "StatementList", "SYM_RBRACE"]],
-            "StatementList": [["Statement", "StatementList"], ["epsilon"]],
-            "Statement": [["Designator", "StmtTail"], ["IfStmt"], ["WhileStmt"], ["ReturnStmt"], ["ReadStmt"], ["PrintStmt"], ["Block"], ["SYM_SEMICOL"]],
-            "StmtTail": [["SYM_ASSIGN", "Expr", "SYM_SEMICOL"], ["ActPars", "SYM_SEMICOL"]],
-            "IfStmt": [["KW_IF", "SYM_LPAREN", "Condition", "SYM_RPAREN", "Statement", "ElseOpt"]],
-            "ElseOpt": [["KW_ELSE", "Statement"], ["epsilon"]],
-            "WhileStmt": [["KW_WHILE", "SYM_LPAREN", "Condition", "SYM_RPAREN", "Statement"]],
-            "ReturnStmt": [["KW_RETURN", "ReturnTail"]],
-            "ReturnTail": [["Expr", "SYM_SEMICOL"], ["SYM_SEMICOL"]],
-            "ReadStmt": [["KW_READ", "SYM_LPAREN", "Designator", "SYM_RPAREN", "SYM_SEMICOL"]],
-            "PrintStmt": [["KW_PRINT", "SYM_LPAREN", "Expr", "PrintTail"]],
-            "PrintTail": [["SYM_COMMA", "NUMBER", "SYM_RPAREN", "SYM_SEMICOL"], ["SYM_RPAREN", "SYM_SEMICOL"]],
-            "Designator": [["id", "DesignatorTail"]],
-            "DesignatorTail": [["SYM_DOT", "id", "DesignatorTail"], ["SYM_LBRACK", "Expr", "SYM_RBRACK", "DesignatorTail"], ["epsilon"]],
-            "ActPars": [["SYM_LPAREN", "ExprList", "SYM_RPAREN"]],
-            "ExprList": [["Expr", "ExprListTail"], ["epsilon"]],
-            "ExprListTail": [["SYM_COMMA", "Expr", "ExprListTail"], ["epsilon"]],
-            "Condition": [["Expr", "Relop", "Expr"]],
-            "Relop": [["OP_EQ"], ["OP_NEQ"], ["OP_GT"], ["OP_GE"], ["OP_LT"], ["OP_LE"]],
-            "Expr": [["ExprPrime"]],
-            "ExprPrime": [["OP_MINUS", "Term", "ExprAddTail"], ["Term", "ExprAddTail"]],
-            "ExprAddTail": [["OP_PLUS", "Term", "ExprAddTail"], ["OP_MINUS", "Term", "ExprAddTail"], ["epsilon"]],
-            "Term": [["Factor", "TermMulTail"]],
-            "TermMulTail": [["OP_MULT", "Factor", "TermMulTail"], ["OP_DIV", "Factor", "TermMulTail"], ["OP_MOD", "Factor", "TermMulTail"], ["epsilon"]],
-            "Factor": [["KW_NEW", "id", "NewArrayOpt"], ["NUMBER"], ["CHAR_CONST"], ["SYM_LPAREN", "Expr", "SYM_RPAREN"], ["Designator", "FactorCallOpt"]],
-            "FactorCallOpt": [["ActPars"], ["epsilon"]],
-            "NewArrayOpt": [["SYM_LBRACK", "Expr", "SYM_RBRACK"], ["epsilon"]],
+
+            "Program": [
+                [
+                    "KW_PROGRAM",
+                    "id",
+                    "DeclSeq",
+                    "SYM_LBRACE",
+                    "MethodSeq",
+                    "SYM_RBRACE"
+                ]
+            ],
+            "DeclSeq": [
+                ["Decl", "DeclSeq"],
+                ["epsilon"]
+            ],
+
+            "Decl": [
+                ["ConstDecl"],
+                ["VarDecl"],
+                ["ClassDecl"]
+            ],
+
+            "ConstDecl": [
+                [
+                    "KW_FINAL",
+                    "Type",
+                    "id",
+                    "SYM_ASSIGN",
+                    "ConstValue",
+                    "SYM_SEMICOL"
+                ]
+            ],
+
+            "ConstValue": [
+                ["NUMBER"],
+                ["CHAR_CONST"]
+            ],
+
+            "VarDecl": [
+                [
+                    "Type",
+                    "id",
+                    "VarTail",
+                    "SYM_SEMICOL"
+                ]
+            ],
+
+            "VarTail": [
+                ["SYM_COMMA", "id", "VarTail"],
+                ["epsilon"]
+            ],
+
+            "ClassDecl": [
+                [
+                    "KW_CLASS",
+                    "id",
+                    "SYM_LBRACE",
+                    "ClassFields",
+                    "SYM_RBRACE"
+                ]
+            ],
+
+            "ClassFields": [
+                ["VarDecl", "ClassFields"],
+                ["epsilon"]
+            ],
+
+            "Type": [
+                ["id", "ArrayOpt"]
+            ],
+
+            "ArrayOpt": [
+                ["SYM_LBRACK", "SYM_RBRACK"],
+                ["epsilon"]
+            ],
+
+            "MethodSeq": [
+                ["MethodDecl", "MethodSeq"],
+                ["epsilon"]
+            ],
+
+            "MethodDecl": [
+                [
+                    "MethodType",
+                    "id",
+                    "SYM_LPAREN",
+                    "FormParsOpt",
+                    "SYM_RPAREN",
+                    "LocalDecls",
+                    "Block"
+                ]
+            ],
+
+            "MethodType": [
+                ["KW_VOID"],
+                ["Type"]
+            ],
+
+            "FormParsOpt": [
+                ["FormPars"],
+                ["epsilon"]
+            ],
+
+            "FormPars": [
+                ["Type", "id", "FormParsTail"]
+            ],
+
+            "FormParsTail": [
+                ["SYM_COMMA", "Type", "id", "FormParsTail"],
+                ["epsilon"]
+            ],
+
+            "LocalDecls": [
+                ["VarDecl", "LocalDecls"],
+                ["epsilon"]
+            ],
+
+            "Block": [
+                [
+                    "SYM_LBRACE",
+                    "StmtSeq",
+                    "SYM_RBRACE"
+                ]
+            ],
+
+            "StmtSeq": [
+                ["Stmt", "StmtSeq"],
+                ["epsilon"]
+            ],
+
+            "Stmt": [
+
+                ["Designator", "StmtTail"],
+
+                [
+                    "KW_IF",
+                    "SYM_LPAREN",
+                    "Condition",
+                    "SYM_RPAREN",
+                    "Stmt",
+                    "ElsePart"
+                ],
+
+                [
+                    "KW_WHILE",
+                    "SYM_LPAREN",
+                    "Condition",
+                    "SYM_RPAREN",
+                    "Stmt"
+                ],
+
+                [
+                    "KW_RETURN",
+                    "ReturnTail"
+                ],
+
+                [
+                    "KW_READ",
+                    "SYM_LPAREN",
+                    "Designator",
+                    "SYM_RPAREN",
+                    "SYM_SEMICOL"
+                ],
+
+                [
+                    "KW_PRINT",
+                    "SYM_LPAREN",
+                    "Expr",
+                    "PrintTail"
+                ],
+
+                ["Block"],
+
+                ["SYM_SEMICOL"]
+            ],
+
+            "StmtTail": [
+                [
+                    "SYM_ASSIGN",
+                    "Expr",
+                    "SYM_SEMICOL"
+                ],
+
+                [
+                    "ActPars",
+                    "SYM_SEMICOL"
+                ]
+            ],
+
+            "ElsePart": [
+                ["KW_ELSE", "Stmt"],
+                ["epsilon"]
+            ],
+
+            "ReturnTail": [
+                ["Expr", "SYM_SEMICOL"],
+                ["SYM_SEMICOL"]
+            ],
+
+            "PrintTail": [
+                [
+                    "SYM_COMMA",
+                    "NUMBER",
+                    "SYM_RPAREN",
+                    "SYM_SEMICOL"
+                ],
+
+                [
+                    "SYM_RPAREN",
+                    "SYM_SEMICOL"
+                ]
+            ],
+            "ActPars": [
+                [
+                    "SYM_LPAREN",
+                    "ExprList",
+                    "SYM_RPAREN"
+                ]
+            ],
+
+            "ExprList": [
+                ["Expr", "ExprListTail"],
+                ["epsilon"]
+            ],
+
+            "ExprListTail": [
+                [
+                    "SYM_COMMA",
+                    "Expr",
+                    "ExprListTail"
+                ],
+                ["epsilon"]
+            ],
+
+            "Condition": [
+                [
+                    "Expr",
+                    "Relop",
+                    "Expr"
+                ]
+            ],
+
+            "Relop": [
+                ["OP_EQ"],
+                ["OP_NEQ"],
+                ["OP_GT"],
+                ["OP_GE"],
+                ["OP_LT"],
+                ["OP_LE"]
+            ],
+            "Expr": [
+                ["ExprPrefix", "Term", "ExprTail"]
+            ],
+
+            "ExprPrefix": [
+                ["OP_MINUS"],
+                ["epsilon"]
+            ],
+
+            "ExprTail": [
+                ["OP_PLUS", "Term", "ExprTail"],
+                ["OP_MINUS", "Term", "ExprTail"],
+                ["epsilon"]
+            ],
+
+            "Term": [
+                ["Factor", "TermTail"]
+            ],
+
+            "TermTail": [
+                ["OP_MULT", "Factor", "TermTail"],
+                ["OP_DIV", "Factor", "TermTail"],
+                ["OP_MOD", "Factor", "TermTail"],
+                ["epsilon"]
+            ],
+            "Factor": [
+
+                ["NUMBER"],
+
+                ["CHAR_CONST"],
+
+                [
+                    "Designator",
+                    "FactorTail"
+                ],
+
+                [
+                    "KW_NEW",
+                    "id",
+                    "NewTail"
+                ],
+
+                [
+                    "SYM_LPAREN",
+                    "Expr",
+                    "SYM_RPAREN"
+                ]
+            ],
+
+            "FactorTail": [
+                ["ActPars"],
+                ["epsilon"]
+            ],
+
+            "NewTail": [
+                [
+                    "SYM_LBRACK",
+                    "Expr",
+                    "SYM_RBRACK"
+                ],
+                ["epsilon"]
+            ],
+            "Designator": [
+                [
+                    "id",
+                    "DesignatorTail"
+                ]
+            ],
+
+            "DesignatorTail": [
+
+                [
+                    "SYM_DOT",
+                    "id",
+                    "DesignatorTail"
+                ],
+
+                [
+                    "SYM_LBRACK",
+                    "Expr",
+                    "SYM_RBRACK",
+                    "DesignatorTail"
+                ],
+
+                ["epsilon"]
+            ]
         }
 
         self.non_terminals = set(self.grammar.keys())
-
         self.terminals = {
-            "KW_PROGRAM", "id", "SYM_LBRACE", "SYM_RBRACE", "KW_FINAL", "SYM_ASSIGN",
-            "NUMBER", "CHAR_CONST", "SYM_SEMICOL", "SYM_COMMA", "KW_CLASS",
-            "KW_VOID", "SYM_LPAREN", "SYM_RPAREN", "SYM_LBRACK", "SYM_RBRACK",
-            "SYM_DOT", "KW_IF", "KW_ELSE", "KW_WHILE", "KW_RETURN", "KW_READ",
-            "KW_PRINT", "OP_EQ", "OP_NEQ", "OP_GT", "OP_GE", "OP_LT", "OP_LE",
-            "OP_PLUS", "OP_MINUS", "OP_MULT", "OP_DIV", "OP_MOD", "KW_NEW", "$",
+            "KW_PROGRAM",
+            "KW_CLASS",
+            "KW_FINAL",
+            "KW_NEW",
+
+            "KW_VOID",
+            "KW_IF",
+            "KW_ELSE",
+            "KW_WHILE",
+            "KW_RETURN",
+            "KW_READ",
+            "KW_PRINT",
+
+            "id",
+            "NUMBER",
+            "CHAR_CONST",
+
+            "SYM_LPAREN",
+            "SYM_RPAREN",
+            "SYM_LBRACK",
+            "SYM_RBRACK",
+            "SYM_LBRACE",
+            "SYM_RBRACE",
+
+            "SYM_ASSIGN",
+            "SYM_SEMICOL",
+            "SYM_COMMA",
+            "SYM_DOT",
+
+            "OP_EQ",
+            "OP_NEQ",
+            "OP_GT",
+            "OP_GE",
+            "OP_LT",
+            "OP_LE",
+
+            "OP_PLUS",
+            "OP_MINUS",
+            "OP_MULT",
+            "OP_DIV",
+            "OP_MOD",
+
+            "$"
         }
 
         self.start_symbol = "S'"
@@ -312,7 +642,6 @@ class LRParser:
     def _convert_tokens(self, tokens: list[Token]) -> list[str]:
         result = []
         for t in tokens:
-            # skip comments for parsing
             if t.type == TokenType.COMMENT:
                 continue
             if t.type == TokenType.EOF:
@@ -323,9 +652,22 @@ class LRParser:
             result.append("$")
         return result
 
-    @staticmethod
-    def _display_sequence(symbols: list[str]) -> str:
-        return " ".join(grammar_symbol_to_display(symbol) for symbol in symbols)
+    def _token_position(self, tokens: list[Token], ip: int) -> tuple[int, int]:
+        idx = min(ip, max(0, len(tokens) - 1))
+        if tokens:
+            return tokens[idx].line, tokens[idx].col
+        return 0, 0
+
+    def _error_recovery(self, state_stack: list[int], sym_stack: list[str], a: str) -> bool:
+        """Panic-mode recovery using error entries: pop until a shift on a is possible."""
+        while len(state_stack) > 1:
+            state_stack.pop()
+            if sym_stack:
+                sym_stack.pop()
+            top = state_stack[-1]
+            if top in self.action and a in self.action[top] and self.action[top][a].startswith("s"):
+                return True
+        return False
 
     def parse(self, tokens: list[Token]) -> dict:
         input_tokens = self._convert_tokens(tokens)
@@ -334,39 +676,38 @@ class LRParser:
         ip = 0
         trace = []
         has_error = False
+        panic_mode = False
 
         while True:
             state = state_stack[-1]
             a = input_tokens[ip] if ip < len(input_tokens) else "$"
 
             state_str = " ".join(str(s) for s in state_stack)
-            sym_str = self._display_sequence(sym_stack) if sym_stack else "$"
-            input_str = self._display_sequence(input_tokens[ip:]) if ip < len(input_tokens) else "$"
+            sym_str = " ".join(sym_stack) if sym_stack else "$"
+            input_str = " ".join(input_tokens[ip:]) if ip < len(input_tokens) else "$"
 
             step = {"state_stack": state_str, "sym_stack": sym_str, "input": input_str, "action": ""}
 
             if state not in self.action or a not in self.action.get(state, {}):
-                err_msg = f"LR: No action for state {state} with {grammar_symbol_to_display(a)}"
-                self.errors.report(ErrorType.SYNTAX, err_msg, 0, 0)
+                line, col = self._token_position(tokens, ip)
+                err_msg = f"LR: No action for state {state} with {a}"
+                if not panic_mode:
+                    self.errors.report(
+                        ErrorType.SYNTAX,
+                        err_msg,
+                        line,
+                        col,
+                        recovery_action="error entry: pop stack until shift possible",
+                    )
+                    panic_mode = True
                 has_error = True
-                step["action"] = f"ERROR - {err_msg}"
+                step["action"] = f"ERROR - {err_msg} (recovery)"
                 trace.append(step)
-                # Panic-mode recovery: pop states until we find one that can handle this token
-                recovered = False
-                while len(state_stack) > 1 and not recovered:
-                    state_stack.pop()
-                    if sym_stack:
-                        sym_stack.pop()
-                    top = state_stack[-1]
-                    if top in self.action and a in self.action[top]:
-                        recovered = True
-                        break
-                if not recovered:
+                if not self._error_recovery(state_stack, sym_stack, a):
                     ip += 1
-                    if a == "$":
-                        break
-                    continue
-                # Recovery succeeded - start fresh iteration with the new state
+                panic_mode = False
+                if a == "$" and ip >= len(input_tokens):
+                    break
                 continue
 
             act = self.action[state][a]
@@ -396,21 +737,16 @@ class LRParser:
                         sym_stack.pop()
 
                 sym_stack.append(lhs)
-                top_state = state_stack[-1] if state_stack else -1
-                if top_state >= 0 and top_state in self.goto_table and lhs in self.goto_table[top_state]:
+                top_state = state_stack[-1]
+                if top_state in self.goto_table and lhs in self.goto_table[top_state]:
                     state_stack.append(self.goto_table[top_state][lhs])
                 else:
                     err_msg = f"LR: No goto entry for state {top_state} with {lhs}"
                     self.errors.report(ErrorType.SYNTAX, err_msg, 0, 0)
                     has_error = True
-                    rhs_str = "epsilon" if not rhs else self._display_sequence(rhs)
-                    step["action"] = f"ERROR - {err_msg}"
-                    trace.append(step)
-                    # Try to recover by skipping current input
-                    ip += 1
-                    continue
+                    break
 
-                rhs_str = "epsilon" if not rhs else self._display_sequence(rhs)
+                rhs_str = "epsilon" if not rhs else " ".join(rhs)
                 step["action"] = f"Reduce {lhs} -> {rhs_str}"
                 trace.append(step)
             else:
@@ -427,7 +763,7 @@ class LRParser:
         states_info = []
         for state in self.states:
             items_str = [str(item) for item in state.items]
-            trans_str = {grammar_symbol_to_display(k): str(v) for k, v in state.transitions.items()}
+            trans_str = {k: str(v) for k, v in state.transitions.items()}
             states_info.append({
                 "id": state.id,
                 "items": items_str,
@@ -441,13 +777,12 @@ class LRParser:
             for t in s_actions:
                 used_terminals.add(t)
 
-        used_terminals_raw = sorted(used_terminals)
-        used_terminals = [grammar_symbol_to_display(t) for t in used_terminals_raw]
+        used_terminals = sorted(used_terminals)
         rows = []
         for s in sorted(self.action.keys()):
             row = {"state": s}
-            for raw_t, display_t in zip(used_terminals_raw, used_terminals):
-                row[display_t] = self.action[s].get(raw_t, "")
+            for t in used_terminals:
+                row[t] = self.action[s].get(t, "")
             rows.append(row)
 
         return {"terminals": used_terminals, "rows": rows}
