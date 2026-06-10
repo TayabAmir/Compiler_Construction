@@ -6,6 +6,7 @@ const moduleNames = {
     ast: "Abstract Syntax Tree",
     ll1: "LL(1) Predictive Parser",
     lr: "LR Parser (SLR(1))",
+    opp: "Operator Precedence Parser",
     symbol_table: "Symbol Table Manager",
     full: "Full Compilation Pipeline",
     grammar: "Grammar &amp; Parsing Tables",
@@ -32,6 +33,7 @@ function getPlaceholder(module) {
         ast: "View the Abstract Syntax Tree built by the parser.",
         ll1: "Parse using LL(1) predictive parsing table.",
         lr: "Parse using SLR(1) shift-reduce parser.",
+        opp: "Parse expressions using operator-precedence (two-stack) parsing.",
         symbol_table: "View symbol table with nested scopes.",
         full: "Execute the full compilation pipeline.",
         grammar: "View grammar, FIRST/FOLLOW sets, and parsing tables.",
@@ -86,6 +88,7 @@ function runModule() {
         ast: "/ast",
         ll1: "/ll1_parser",
         lr: "/lr_parser",
+        opp: "/opp_parser",
         symbol_table: "/symbol_table",
         full: "/full_compilation",
         grammar: "/grammar_info",
@@ -145,6 +148,9 @@ function renderOutput(module, data) {
         case "lr":
             renderLROutput(body, data);
             break;
+        case "opp":
+            renderOPPOutput(body, data);
+            break;
         case "symbol_table":
             renderSymbolTableOutput(body, data);
             break;
@@ -181,6 +187,64 @@ function renderRecursiveOutput(body, data) {
         ${data.success ? "✓" : "✗"} ${data.success ? "Parsing Successful!" : "Parsing Failed"}
     </div>`;
     html += `</div>`;
+    html += renderSymbolTableHTML(data.symbol_table);
+    html += renderErrorSummary(data);
+    body.innerHTML = html;
+}
+
+function renderOPPOutput(body, data) {
+    let html = `<div class="summary-card"><h4>Operator Precedence Parser Result</h4>`;
+    html += `<div class="module-result ${data.success ? "pass" : "fail"}">
+        ${data.success ? "✓" : "✗"} ${data.success ? "Parsing Successful!" : "Parsing Failed"}
+    </div>`;
+    html += `<div style="font-size:12px;color:var(--text-muted);margin-top:8px;">
+        Program structure via recursive descent · Expressions via two-stack operator precedence
+    </div>`;
+    html += `</div>`;
+
+    if (data.precedence_table && data.precedence_table.length > 0) {
+        html += `<div class="summary-card"><h4>Operator Precedence Table</h4>`;
+        html += `<table class="parse-table"><thead><tr>
+            <th>Operator</th><th>Precedence</th><th>Associativity</th>
+        </tr></thead><tbody>`;
+        for (const row of data.precedence_table) {
+            html += `<tr>
+                <td><strong>${escHtml(row.operator)}</strong></td>
+                <td>${row.precedence}</td>
+                <td>${escHtml(row.associativity)}</td>
+            </tr>`;
+        }
+        html += `</tbody></table></div>`;
+    }
+
+    if (data.expression_traces && data.expression_traces.length > 0) {
+        html += `<div class="summary-card"><h4>Expression Parsing Trace (Two-Stack)</h4>`;
+        html += `<div class="lr-trace-header">
+            <span class="lr-trace-step-h">#</span>
+            <span style="min-width:140px">Operator Stack</span>
+            <span style="min-width:180px">Operand Stack</span>
+            <span style="min-width:80px">Lookahead</span>
+            <span>Action</span>
+        </div>`;
+        for (const step of data.expression_traces) {
+            const isReduce = step.action.startsWith("REDUCE");
+            const isShift = step.action.startsWith("SHIFT");
+            const badge = isReduce
+                ? '<span class="lr-badge-reduce">REDUCE</span>'
+                : isShift
+                  ? '<span class="lr-badge-shift">SHIFT</span>'
+                  : "";
+            html += `<div class="lr-trace-row">
+                <span class="lr-trace-step">${step.step}</span>
+                <span style="min-width:140px;color:var(--accent-cyan)">${escHtml(step.operator_stack)}</span>
+                <span style="min-width:180px;color:var(--accent-yellow)">${escHtml(step.operand_stack)}</span>
+                <span style="min-width:80px">${escHtml(step.lookahead)}</span>
+                <span>${badge} <span class="lr-action-detail">${escHtml(step.action)}</span></span>
+            </div>`;
+        }
+        html += `</div>`;
+    }
+
     html += renderSymbolTableHTML(data.symbol_table);
     html += renderErrorSummary(data);
     body.innerHTML = html;

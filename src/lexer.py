@@ -23,8 +23,6 @@ EOF_SENTINEL = "\0"
 
 
 class DoubleBuffer:
-    """Classic double-buffering scheme (Dragon book / Lab 2)."""
-
     def __init__(self, source: str):
         self.source = source
         self.source_len = len(source)
@@ -118,10 +116,13 @@ class Lexer:
             break
 
     def _next_char(self) -> str:
+        if self.buffer.at_end():
+            return ""
         saved = self.buffer.current
         saved_line = self.buffer.line
         saved_col = self.buffer.col
-        nxt = self.advance()
+        self.buffer.advance()
+        nxt = self.buffer.peek()
         self.buffer.current = saved
         self.buffer.line = saved_line
         self.buffer.col = saved_col

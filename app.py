@@ -10,6 +10,7 @@ from src.symbol_table import ScopeManager, IdentifierKind, DataType
 from src.recursive_parser import RecursiveParser
 from src.ll1_parser import LL1Parser
 from src.lr_parser import LRParser
+from src.operator_precedence_parser import OperatorPrecedenceParser
 from src.ast import ASTNode
 
 app = Flask(__name__)
@@ -155,6 +156,29 @@ def run_lr_parser():
         "error_summary": errors.get_summary(),
         "errors": [e.to_dict() for e in errors.get_errors()],
         "total_tokens": len(tokens),
+    })
+
+
+@app.route("/opp_parser", methods=["POST"])
+def run_opp_parser():
+    data = request.get_json()
+    source = data.get("source", "")
+
+    errors = ErrorHandler()
+    lexer = Lexer(source, errors)
+    sym_table = ScopeManager()
+    parser = OperatorPrecedenceParser(lexer, sym_table, errors)
+
+    success, ast = parser.parse()
+
+    return jsonify({
+        "success": success,
+        "precedence_table": OperatorPrecedenceParser.get_precedence_table(),
+        "expression_traces": parser.get_expression_traces(),
+        "error_summary": errors.get_summary(),
+        "errors": [e.to_dict() for e in errors.get_errors()],
+        "symbol_table": sym_table.get_all_scopes_data(),
+        "ast": ast.to_dict() if ast else None,
     })
 
 

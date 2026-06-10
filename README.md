@@ -14,6 +14,7 @@ A complete mini compiler for the MicroJava language, integrating all lab modules
 - Recursive Descent Parser
 - LL(1) Predictive Parser
 - LR Parser (SLR(1))
+- Operator Precedence Parser (two-stack expression parsing)
 - Symbol Table Manager (with nested scopes)
 - Error Handler (with panic-mode recovery)
 - Full Compilation Pipeline
@@ -209,7 +210,14 @@ The web interface provides:
 - Uses FOLLOW sets to determine reduce actions
 - Prints complete parsing trace
 
-### 5. Symbol Table Manager (`src/symbol_table.py`)
+### 5. Operator Precedence Parser (`src/operator_precedence_parser.py`)
+- Hybrid parser: recursive descent for program structure, operator-precedence for expressions
+- Two stacks: operator stack and operand stack
+- Precedence table: unary `-` (4) > `*` `/` `%` (3) > `+` `-` (2), all left-associative except unary minus
+- SHIFT/REDUCE actions with full expression parsing trace
+- CLI: `python main.py opp test_opp.mj` · Web UI: **Operator Precedence** module
+
+### 6. Symbol Table Manager (`src/symbol_table.py`)
 - Hash table implementation (size 211, with chaining)
 - Supports insert, lookup, and delete by name
 - Stores: name, kind (variable/constant/function/array/class/parameter), type (int/char/void), scope level, line number
@@ -217,7 +225,7 @@ The web interface provides:
 - ScopeManager with `begin_scope()` / `end_scope()` for block nesting
 - Dumps all scope levels with their entries
 
-### 6. Error Handler (`src/error_handler.py`)
+### 7. Error Handler (`src/error_handler.py`)
 - Three error categories: Lexical, Syntax, Semantic
 - Each error stores: type, message, line, column
 - Summary statistics (total / lexical / syntax / semantic)

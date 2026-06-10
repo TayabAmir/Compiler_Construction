@@ -12,6 +12,7 @@ from src.symbol_table import ScopeManager, IdentifierKind, DataType
 from src.recursive_parser import RecursiveParser
 from src.ll1_parser import LL1Parser
 from src.lr_parser import LRParser
+from src.operator_precedence_parser import OperatorPrecedenceParser
 
 
 TEST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test")
@@ -136,6 +137,40 @@ def run_ll1_parser(source: str):
     print_trace(result)
     print_summary(errors)
     return result
+
+
+def run_opp_parser(source: str):
+    errors = ErrorHandler()
+    lexer = Lexer(source, errors)
+    sym_table = ScopeManager()
+    parser = OperatorPrecedenceParser(lexer, sym_table, errors)
+
+    print_header("OPERATOR PRECEDENCE PARSER OUTPUT")
+    print("  Program structure: recursive descent")
+    print("  Expressions: operator-precedence (two-stack)")
+    print_separator()
+    print_section("OPERATOR PRECEDENCE TABLE")
+    for row in OperatorPrecedenceParser.get_precedence_table():
+        print(f"    {row['operator']:<12}  precedence={row['precedence']}  associativity={row['associativity']}")
+
+    success, _ = parser.parse()
+    print()
+    print(f"  Result: {'[PASS]' if success else '[FAIL]'}")
+    print_separator()
+    print_symbol_table(sym_table)
+    traces = parser.get_expression_traces()
+    if traces:
+        print_section("EXPRESSION PARSING TRACE (two-stack)")
+        print(f"  {'#':>3}  {'Operator Stack':<22} {'Operand Stack':<28} {'Lookahead':<12} {'Action'}")
+        print_separator()
+        for step in traces:
+            print(
+                f"  {step['step']:>3}  {step['operator_stack']:<22} "
+                f"{step['operand_stack']:<28} {step['lookahead']:<12} {step['action']}"
+            )
+        print_separator()
+    print_summary(errors)
+    return success
 
 
 def run_lr_parser(source: str):
@@ -452,10 +487,11 @@ def interactive_mode():
     print("    3. Abstract Syntax Tree (AST)")
     print("    4. LL(1) Predictive Parser")
     print("    5. LR Parser (SLR(1))")
-    print("    6. Symbol Table Manager")
-    print("    7. Full Compilation (All)")
-    print("    8. Grammar Info & Tables")
-    print("    9. All of the above")
+    print("    6. Operator Precedence Parser")
+    print("    7. Symbol Table Manager")
+    print("    8. Full Compilation (All)")
+    print("    9. Grammar Info & Tables")
+    print("   10. All of the above")
     print()
     try:
         choice = input("  Enter choice (1-8): ").strip()
@@ -473,17 +509,20 @@ def interactive_mode():
     elif choice == "5":
         run_lr_parser(source)
     elif choice == "6":
-        run_symbol_table(source)
+        run_opp_parser(source)
     elif choice == "7":
-        run_full_compilation(source)
+        run_symbol_table(source)
     elif choice == "8":
-        print_grammar_info()
+        run_full_compilation(source)
     elif choice == "9":
+        print_grammar_info()
+    elif choice == "10":
         run_lexer(source)
         run_recursive_parser(source)
         run_ast(source)
         run_ll1_parser(source)
         run_lr_parser(source)
+        run_opp_parser(source)
         run_symbol_table(source)
     else:
         print("  Invalid choice.")
@@ -504,6 +543,7 @@ def main():
         print("    ast          Show abstract syntax tree (AST)")
         print("    ll1          Run LL(1) predictive parser")
         print("    lr           Run LR parser (SLR(1))")
+        print("    opp          Run operator precedence parser")
         print("    symbol_table Run symbol table manager")
         print("    full         Run full compilation pipeline")
         print("    grammar      Show grammar info & parsing tables")
@@ -547,13 +587,15 @@ def main():
         run_ll1_parser(source)
     elif module == "lr":
         run_lr_parser(source)
+    elif module == "opp":
+        run_opp_parser(source)
     elif module == "symbol_table":
         run_symbol_table(source)
     elif module == "full":
         run_full_compilation(source)
     else:
         print(f"[ERROR] Unknown module: '{module}'")
-        print(f"  Available: lexer, recursive, ast, ll1, lr, symbol_table, full, grammar, interactive")
+        print(f"  Available: lexer, recursive, ast, ll1, lr, opp, symbol_table, full, grammar, interactive")
         sys.exit(1)
 
 
